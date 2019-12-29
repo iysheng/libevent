@@ -195,6 +195,9 @@ extern int event_debug_mode_on_;
 #define EVENT_DEBUG_MODE_IS_ON() (0)
 #endif
 
+/* 定义了一个 tailqueue head
+ * struct evcallbak_list;
+ **/
 TAILQ_HEAD(evcallback_list, event_callback);
 
 /* Sets up an event for processing once */
@@ -406,6 +409,7 @@ struct event_config_entry {
 /** Internal structure: describes the configuration we want for an event_base
  * that we're about to allocate. */
 struct event_config {
+	/* 定义一个 tailqueue 的队列头 struct event_configq entries */
 	TAILQ_HEAD(event_configq, event_config_entry) entries;
 
 	int n_cpus_hint;

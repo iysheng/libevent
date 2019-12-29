@@ -144,7 +144,7 @@ static void	event_queue_remove_active(struct event_base *, struct event_callback
 static void	event_queue_remove_active_later(struct event_base *, struct event_callback *);
 static void	event_queue_remove_timeout(struct event_base *, struct event *);
 static void	event_queue_remove_inserted(struct event_base *, struct event *);
-static void event_queue_make_later_events_active(struct event_base *base);
+static void	event_queue_make_later_events_active(struct event_base *base);
 
 static int evthread_make_base_notifiable_nolock_(struct event_base *base);
 static int event_del_(struct event *ev, int blocking);
@@ -521,6 +521,7 @@ struct event_base *
 event_base_new(void)
 {
 	struct event_base *base = NULL;
+	/* 初始化一个 event_config 配置结构体 */
 	struct event_config *cfg = event_config_new();
 	if (cfg) {
 		base = event_base_new_with_config(cfg);
@@ -602,6 +603,7 @@ event_disable_debug_mode(void)
 #endif
 }
 
+/* 根据配置文件创建一个 event_base 实例 */
 struct event_base *
 event_base_new_with_config(const struct event_config *cfg)
 {
@@ -648,6 +650,7 @@ event_base_new_with_config(const struct event_config *cfg)
 	base->th_notify_fd[0] = -1;
 	base->th_notify_fd[1] = -1;
 
+	/* 初始化一个空的 tailqueue head */
 	TAILQ_INIT(&base->active_later_queue);
 
 	evmap_io_initmap_(&base->io);
@@ -1151,11 +1154,13 @@ event_get_supported_methods(void)
 struct event_config *
 event_config_new(void)
 {
+	/* 定义一个 event_config 的配置结构体 */
 	struct event_config *cfg = mm_calloc(1, sizeof(*cfg));
 
 	if (cfg == NULL)
 		return (NULL);
 
+	/* 初始化 tailqueue 的链表头 */
 	TAILQ_INIT(&cfg->entries);
 	cfg->max_dispatch_interval.tv_sec = -1;
 	cfg->max_dispatch_callbacks = INT_MAX;

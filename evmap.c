@@ -141,6 +141,17 @@ HT_GENERATE(event_io_map, event_map_entry, map_node, hashsocket, eqsocket,
 
 void evmap_io_initmap_(struct event_io_map *ctx)
 {
+	/*
+	 * event_io_map_HT_INIT(ctx)
+	 *  event_io_map_HT_INIT(ctx) {                                   \
+	 *    ctx->hth_table_length = 0;                                         \
+	 *    ctx->hth_table = NULL;                                             \
+	 *    ctx->hth_n_entries = 0;                                            \
+	 *    ctx->hth_load_limit = 0;                                           \
+	 *    ctx->hth_prime_idx = -1;                                           \
+	 *  }                                                                     \
+	 *
+	 */
 	HT_INIT(event_io_map, ctx);
 }
 

@@ -57,6 +57,7 @@
 #define HT_NEXT(name, head, elm)     name##_HT_NEXT((head), (elm))
 #define HT_NEXT_RMV(name, head, elm) name##_HT_NEXT_RMV((head), (elm))
 #define HT_CLEAR(name, head)         name##_HT_CLEAR(head)
+/* 初始化一个结构体 */
 #define HT_INIT(name, head)          name##_HT_INIT(head)
 /* Helper: */
 static inline unsigned

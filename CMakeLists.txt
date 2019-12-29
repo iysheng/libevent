@@ -19,8 +19,9 @@
 #       start libevent.sln
 #
 
+# 限制 cmake 的最低版本号
 cmake_minimum_required(VERSION 3.1.2 FATAL_ERROR)
-
+# POLICY:政策
 if (POLICY CMP0054)
     cmake_policy(SET CMP0054 NEW)
 endif()
@@ -791,6 +792,7 @@ set(HDR_PUBLIC
     include/event2/visibility.h
     ${PROJECT_BINARY_DIR}/include/event2/event-config.h)
 
+# 添加源文件
 set(SRC_CORE
     buffer.c
     bufferevent.c
@@ -886,6 +888,7 @@ add_definitions(-DHAVE_CONFIG_H)
 
 # We use BEFORE here so we don't accidentally look in system directories
 # first for some previous versions of the headers that are installed.
+# 添加头文件目录
 include_directories(BEFORE ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/compat
     ${PROJECT_SOURCE_DIR}/include)
@@ -941,6 +944,7 @@ configure_file(
 # Create the libraries.
 #
 include(AddEventLibrary)
+message(STATUS "[RED]event_core src:" ${SRC_CORE})
 add_event_library(event_core SOURCES ${SRC_CORE})
 add_event_library(event_extra
     INNER_LIBRARIES event_core
