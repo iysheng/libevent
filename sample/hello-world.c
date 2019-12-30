@@ -48,15 +48,20 @@ main(int argc, char **argv)
 	WSAStartup(0x0201, &wsa_data);
 #endif
 
+	/* 创建一个 event_base 实例 */
 	base = event_base_new();
 	if (!base) {
 		fprintf(stderr, "Could not initialize libevent!\n");
 		return 1;
 	}
 
+	/* 初始化 socket 打协议族和端口号 */
 	sin.sin_family = AF_INET;
 	sin.sin_port = htons(PORT);
 
+	/* 将这个 socket 关联到 event_base 实例，注册一个回调函数，返回一个
+	 * struct evconnlistener 指针
+	 * */
 	listener = evconnlistener_new_bind(base, listener_cb, (void *)base,
 	    LEV_OPT_REUSEABLE|LEV_OPT_CLOSE_ON_FREE, -1,
 	    (struct sockaddr*)&sin,
@@ -67,6 +72,8 @@ main(int argc, char **argv)
 		return 1;
 	}
 
+	/* 注册一个监听 SIGINT 信号的回调函数，返回一个 struct event
+	 * 结构体指针 */
 	signal_event = evsignal_new(base, SIGINT, signal_cb, (void *)base);
 
 	if (!signal_event || event_add(signal_event, NULL)<0) {
@@ -74,6 +81,7 @@ main(int argc, char **argv)
 		return 1;
 	}
 
+	/* 循环监听 event_base 实例关联的各种事件 */
 	event_base_dispatch(base);
 
 	evconnlistener_free(listener);
@@ -84,6 +92,7 @@ main(int argc, char **argv)
 	return 0;
 }
 
+/* 这个是 socket 建立连接时的回调函数 */
 static void
 listener_cb(struct evconnlistener *listener, evutil_socket_t fd,
     struct sockaddr *sa, int socklen, void *user_data)
@@ -91,6 +100,7 @@ listener_cb(struct evconnlistener *listener, evutil_socket_t fd,
 	struct event_base *base = user_data;
 	struct bufferevent *bev;
 
+	/* 申请 bufferevent 缓冲区 */
 	bev = bufferevent_socket_new(base, fd, BEV_OPT_CLOSE_ON_FREE);
 	if (!bev) {
 		fprintf(stderr, "Error constructing bufferevent!");
@@ -101,6 +111,7 @@ listener_cb(struct evconnlistener *listener, evutil_socket_t fd,
 	bufferevent_enable(bev, EV_WRITE);
 	bufferevent_disable(bev, EV_READ);
 
+	/* 写数据到 bufferevent */
 	bufferevent_write(bev, MESSAGE, strlen(MESSAGE));
 }
 
@@ -128,6 +139,7 @@ conn_eventcb(struct bufferevent *bev, short events, void *user_data)
 	bufferevent_free(bev);
 }
 
+/* 监听 SIGINT 信号的回调函数 */
 static void
 signal_cb(evutil_socket_t sig, short events, void *user_data)
 {
