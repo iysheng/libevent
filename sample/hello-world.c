@@ -73,7 +73,8 @@ main(int argc, char **argv)
 	}
 
 	/* 注册一个监听 SIGINT 信号的回调函数，返回一个 struct event
-	 * 结构体指针 */
+	 * 结构体指针
+	 * 关联 SIGINT 信号到创建出来的 listener */
 	signal_event = evsignal_new(base, SIGINT, signal_cb, (void *)base);
 
 	if (!signal_event || event_add(signal_event, NULL)<0) {
@@ -81,7 +82,8 @@ main(int argc, char **argv)
 		return 1;
 	}
 
-	/* 循环监听 event_base 实例关联的各种事件 */
+	/* 循环监听 event_base 实例关联的各种事件
+	 * 这个函数也很复杂 */
 	event_base_dispatch(base);
 
 	evconnlistener_free(listener);

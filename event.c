@@ -2146,6 +2146,9 @@ event_base_once(struct event_base *base, evutil_socket_t fd, short events,
 	return (0);
 }
 
+/* 这个函数是关联 event_base 到 event 的核心！！！
+ * event_new 是这个的一层包装
+ * */
 int
 event_assign(struct event *ev, struct event_base *base, evutil_socket_t fd, short events, void (*callback)(evutil_socket_t, short, void *), void *arg)
 {
@@ -2158,13 +2161,19 @@ event_assign(struct event *ev, struct event_base *base, evutil_socket_t fd, shor
 		event_debug_assert_socket_nonblocking_(fd);
 	event_debug_assert_not_added_(ev);
 
+	/* 初始化这个 event 实例！！！ */
 	ev->ev_base = base;
 
+	/* 初始化这个 event 的回调函数 */
 	ev->ev_callback = callback;
+	/* 初始化这个 event 的回调函数的参数 */
 	ev->ev_arg = arg;
+	/* 初始化这个 event 倾听的句柄 */
 	ev->ev_fd = fd;
+	/* 初始化这个 event 的事件类型 */
 	ev->ev_events = events;
 	ev->ev_res = 0;
+	/* 初始化这个 event 的标志 */
 	ev->ev_flags = EVLIST_INIT;
 	ev->ev_ncalls = 0;
 	ev->ev_pncalls = NULL;
@@ -2177,6 +2186,7 @@ event_assign(struct event *ev, struct event_base *base, evutil_socket_t fd, shor
 		}
 		ev->ev_closure = EV_CLOSURE_EVENT_SIGNAL;
 	} else {
+		/* 如果有倾听持久性事件 */
 		if (events & EV_PERSIST) {
 			evutil_timerclear(&ev->ev_io_timeout);
 			ev->ev_closure = EV_CLOSURE_EVENT_PERSIST;
@@ -2245,9 +2255,11 @@ struct event *
 event_new(struct event_base *base, evutil_socket_t fd, short events, void (*cb)(evutil_socket_t, short, void *), void *arg)
 {
 	struct event *ev;
+	/* 重新创建一个 event */
 	ev = mm_malloc(sizeof(struct event));
 	if (ev == NULL)
 		return (NULL);
+	/* 再次关联 event_base 到新创建的 event */
 	if (event_assign(ev, base, fd, events, cb, arg) < 0) {
 		mm_free(ev);
 		return (NULL);

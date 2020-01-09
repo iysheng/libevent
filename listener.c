@@ -186,6 +186,7 @@ evconnlistener_new(struct event_base *base,
 		return NULL;
 
 	lev->base.ops = &evconnlistener_event_ops;
+	/* 关联用户定义的回调函数 */
 	lev->base.cb = cb;
 	lev->base.user_data = ptr;
 	lev->base.flags = flags;
@@ -201,6 +202,9 @@ evconnlistener_new(struct event_base *base,
 		EVTHREAD_ALLOC_LOCK(lev->base.lock, EVTHREAD_LOCKTYPE_RECURSIVE);
 	}
 
+	/* event_assign 函数定义在 event.c 文件
+	 * 分析这个函数十分重要，关联了 event_base 到 listener （这是一个 struct event 实例）
+	 * */
 	event_assign(&lev->listener, base, fd, EV_READ|EV_PERSIST,
 	    listener_read_cb, lev);
 
@@ -308,7 +312,11 @@ evconnlistener_enable(struct evconnlistener *lev)
 	int r;
 	LOCK(lev);
 	lev->enabled = 1;
+	/* 如果有关联到用户定义的回调函数 */
 	if (lev->cb)
+		/* ops 关联的是 evconnlistener_event_ops
+		 * 执行 evconnlistener_event_ops 的 enable 回调函数 
+		 * */
 		r = lev->ops->enable(lev);
 	else
 		r = 0;

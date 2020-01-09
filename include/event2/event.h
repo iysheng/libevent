@@ -926,7 +926,7 @@ int event_base_got_break(struct event_base *eb);
 /** Wait for a POSIX signal to be raised*/
 #define EV_SIGNAL	0x08
 /**
- * Persistent event: won't get removed automatically when activated.
+ * Persistent(持续不断的) event: won't get removed automatically when activated.
  *
  * When a persistent event with a timeout becomes activated, its timeout
  * is reset to 0.
