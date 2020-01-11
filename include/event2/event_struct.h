@@ -105,8 +105,9 @@ struct name {								\
 struct event;
 
 struct event_callback {
+	/* tailq 管理已经激活的事件 */
 	TAILQ_ENTRY(event_callback) evcb_active_next;
-	/* event 的标志，考虑是标记当前整个 event 的截断 */
+	/* event 的标志，考虑是标记当前整个 event 的阶段 */
 	short evcb_flags;
 	ev_uint8_t evcb_pri;	/* smaller numbers are higher priority */
 	/* 事件中止码  */
@@ -179,6 +180,7 @@ TAILQ_HEAD (event_list, event);
 #undef TAILQ_HEAD
 #endif
 
+/* 这个链表头可以链接 event */
 LIST_HEAD (event_dlist, event);
 
 /* LIST_HEAD 宏展开

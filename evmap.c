@@ -60,6 +60,9 @@
  * 所有的 struct evmap_io 和 struct evmap_signal 实例 */
 struct evmap_io {
 	struct event_dlist events;
+	/* 这几个参数是什么意思
+	 * nread、nwrite、nclose：读、写、关闭事件发生的次数？？？
+	 * */
 	ev_uint16_t nread;
 	ev_uint16_t nwrite;
 	ev_uint16_t nclose;
@@ -392,6 +395,7 @@ evmap_io_del_(struct event_base *base, evutil_socket_t fd, struct event *ev)
 		return (-1);
 #endif
 
+	/* 根据 fd 找到对应的 evmap_io 实例 */
 	GET_IO_SLOT(ctx, io, fd, evmap_io);
 
 	nread = ctx->nread;
@@ -405,22 +409,26 @@ evmap_io_del_(struct event_base *base, evutil_socket_t fd, struct event *ev)
 	if (nclose)
 		old |= EV_CLOSED;
 
+	/* 如果倾听的是读事件 */
 	if (ev->ev_events & EV_READ) {
 		if (--nread == 0)
 			res |= EV_READ;
 		EVUTIL_ASSERT(nread >= 0);
 	}
+	/* 如果倾听的是写事件 */
 	if (ev->ev_events & EV_WRITE) {
 		if (--nwrite == 0)
 			res |= EV_WRITE;
 		EVUTIL_ASSERT(nwrite >= 0);
 	}
+	/* 如果倾听的是关闭事件 */
 	if (ev->ev_events & EV_CLOSED) {
 		if (--nclose == 0)
 			res |= EV_CLOSED;
 		EVUTIL_ASSERT(nclose >= 0);
 	}
 
+	/* 如果已经有对应的读、写和关闭时间发生 */
 	if (res) {
 		void *extra = ((char*)ctx) + sizeof(struct evmap_io);
 		if (evsel->del(base, ev->ev_fd,
@@ -434,6 +442,7 @@ evmap_io_del_(struct event_base *base, evutil_socket_t fd, struct event *ev)
 	ctx->nread = nread;
 	ctx->nwrite = nwrite;
 	ctx->nclose = nclose;
+	/* 从 event_base 的 io map 删除这个 evmap_io 实例 */
 	LIST_REMOVE(ev, ev_io_next);
 
 	return (retval);
@@ -511,6 +520,7 @@ evmap_signal_add_(struct event_base *base, int sig, struct event *ev)
 	return (1);
 }
 
+/* 从 event_base 删除指定 sig 的信号 event */
 int
 evmap_signal_del_(struct event_base *base, int sig, struct event *ev)
 {
@@ -521,10 +531,13 @@ evmap_signal_del_(struct event_base *base, int sig, struct event *ev)
 	if (sig < 0 || sig >= map->nentries)
 		return (-1);
 
+	/* 根据信号的值，查找对应的 evmap_signal 实例地址赋值给 ctx */
 	GET_SIGNAL_SLOT(ctx, map, sig, evmap_signal);
 
+	/* 删除这个 event */
 	LIST_REMOVE(ev, ev_signal_next);
 
+	/* 如果不存在 event 了？？？ */
 	if (LIST_FIRST(&ctx->events) == NULL) {
 		if (evsel->del(base, ev->ev_fd, 0, EV_SIGNAL, NULL) == -1)
 			return (-1);

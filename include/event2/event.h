@@ -547,6 +547,9 @@ enum event_base_config_flag {
 	/** Instead of checking the current time every time the event loop is
 	    ready to run timeout callbacks, check after each timeout callback.
 	 */
+	/* 如果 event_base 置位了该标志位，那么不会缓存系统时间
+	 * 缓存系统时间的目的是为了避免频繁通过系统调用获取时间，降低性能
+	 * */
 	EVENT_BASE_FLAG_NO_CACHE_TIME = 0x08,
 
 	/** If we are using the epoll backend, this flag says that it is

@@ -315,11 +315,18 @@ struct event_base {
 	 * that have triggered, and whose callbacks need to be called).  Low
 	 * priority numbers are more important, and stall higher ones.
 	 */
+	/* 使用 tailq 管理已经激活的 event，并且还需要调用注册的回调函数
+	 * 的事件
+	 * */
 	struct evcallback_list *activequeues;
 	/** The length of the activequeues array */
+	/* 已经激活的 event 的个数？？？ */
 	int nactivequeues;
 	/** A list of event_callbacks that should become active the next time
 	 * we process events, but not this time. */
+	/* 使用 tailq 管理应该需要在下次激活的 event，并且还需要调用注册的回调函数
+	 * 的事件
+	 * */
 	struct evcallback_list active_later_queue;
 
 	/* common timeout logic */
@@ -347,6 +354,7 @@ struct event_base {
 
 	/** Stored timeval: used to avoid calling gettimeofday/clock_gettime
 	 * too often. */
+	/* 保存时间戳，避免频繁通过系统调用获取时间？？？ */
 	struct timeval tv_cache;
 
 	struct evutil_monotonic_timer monotonic_timer;
