@@ -2772,11 +2772,14 @@ evutil_load_windows_system_library_(const TCHAR *library_name)
  * to make the socket nonblocking or close-on-exec with as few syscalls as
  * possible.
  */
+/* 创建一个 socket，一个包装器，实现多种架构，统一调用 Linux 风格的 socket
+ * 创建方法 */
 evutil_socket_t
 evutil_socket_(int domain, int type, int protocol)
 {
 	evutil_socket_t r;
 #if defined(SOCK_NONBLOCK) && defined(SOCK_CLOEXEC)
+	/* 说明是 Linux 系统 */
 	r = socket(domain, type, protocol);
 	if (r >= 0)
 		return r;

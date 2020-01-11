@@ -521,10 +521,13 @@ struct event_base *
 event_base_new(void)
 {
 	struct event_base *base = NULL;
-	/* 初始化一个 event_config 配置结构体 */
+	/* 初始化一个默认的 event_config 配置结构体 */
 	struct event_config *cfg = event_config_new();
 	if (cfg) {
+		/* 根据 event_config 的内容初始化 event_base 实例 */
 		base = event_base_new_with_config(cfg);
+		/* 释放掉 event_config 的内存，因为 event_config 仅仅是一个中间
+		 * 环节 */
 		event_config_free(cfg);
 	}
 	return base;
@@ -1953,17 +1956,22 @@ event_base_loop(struct event_base *base, int flags)
 
 	/* Grab the lock.  We will release it inside evsel.dispatch, and again
 	 * as we invoke watchers and user callbacks. */
+	/* 获取这个 event_base 的锁 */
 	EVBASE_ACQUIRE_LOCK(base, th_base_lock);
 
+	/* 如果当前 event_base 已经在循环执行了，说明存在错误，返回 */
 	if (base->running_loop) {
 		event_warnx("%s: reentrant invocation.  Only one event_base_loop"
 		    " can run on each event_base at once.", __func__);
+		/* 释放 event_base 的锁 */
 		EVBASE_RELEASE_LOCK(base, th_base_lock);
 		return -1;
 	}
 
+	/* 标记 event_base 正在运行 */
 	base->running_loop = 1;
 
+	/* 清零 event_base 时间 */
 	clear_time_cache(base);
 
 	if (base->sig.ev_signal_added && base->sig.ev_n_signals_added)
@@ -2013,14 +2021,17 @@ event_base_loop(struct event_base *base, int flags)
 
 		/* Invoke prepare watchers before polling for events */
 		prepare_info.timeout = tv_p;
+		/* 循环遍历所有的 event_base 关联的事件 */
 		TAILQ_FOREACH(watcher, &base->watchers[EVWATCH_PREPARE], next) {
 			EVBASE_RELEASE_LOCK(base, th_base_lock);
+			/* 倾听的回调函数准备工作处理 */
 			(*watcher->callback.prepare)(watcher, &prepare_info, watcher->arg);
 			EVBASE_ACQUIRE_LOCK(base, th_base_lock);
 		}
 
 		clear_time_cache(base);
 
+		/* dispatch 派遣，调度 */
 		res = evsel->dispatch(base, tv_p);
 
 		if (res == -1) {
@@ -2161,47 +2172,75 @@ event_assign(struct event *ev, struct event_base *base, evutil_socket_t fd, shor
 		event_debug_assert_socket_nonblocking_(fd);
 	event_debug_assert_not_added_(ev);
 
-	/* 初始化这个 event 实例！！！ */
+	/* 初始化这个 event 实例！！！
+	 * 将 event_base 关联到这个 event
+	 * */
 	ev->ev_base = base;
 
-	/* 初始化这个 event 的回调函数 */
+	/* 初始化这个 event 的回调函数
+	 * ev->ev_evcallback.evcb_cb_union.evcb_callback = callback
+	 * */
 	ev->ev_callback = callback;
-	/* 初始化这个 event 的回调函数的参数 */
+	/* 初始化这个 event 的回调函数的参数
+	 * ev->ev_evcallback.evcb_arg = arg
+	 * */
 	ev->ev_arg = arg;
 	/* 初始化这个 event 倾听的句柄 */
 	ev->ev_fd = fd;
 	/* 初始化这个 event 的事件类型 */
 	ev->ev_events = events;
 	ev->ev_res = 0;
-	/* 初始化这个 event 的标志 */
+	/* 初始化这个 event 的标志，还是回调结构体的成员
+	 * ev->ev_evcallback.evcb_flags = EVLIST_INIT;
+	 * */
 	ev->ev_flags = EVLIST_INIT;
+	/* ev->ev_.ev_signal.ev_ncalls = 0
+	 * ev->ev_signal.ev_pncalls = NULL
+	 * */
 	ev->ev_ncalls = 0;
 	ev->ev_pncalls = NULL;
 
+	/* 如果是在倾听信号 */
 	if (events & EV_SIGNAL) {
+		/* 如果有在倾听读、写和关闭事件
+		 * 提示错误，信号量事件不支持读、写和关闭事件倾听
+		 * */
 		if ((events & (EV_READ|EV_WRITE|EV_CLOSED)) != 0) {
 			event_warnx("%s: EV_SIGNAL is not compatible with "
 			    "EV_READ, EV_WRITE or EV_CLOSED", __func__);
 			return -1;
 		}
+		/* ev->ev_evcallback.evcb_closure = EV_CLOSURE_EVENT_SIGNAL
+		 * 赋值倾听事件终止码
+		 * */
 		ev->ev_closure = EV_CLOSURE_EVENT_SIGNAL;
 	} else {
-		/* 如果有倾听持久性事件 */
+		/* 如果不是在倾听信号，并且有倾听持久性事件 */
 		if (events & EV_PERSIST) {
+			/* 清零 ev_io_timeout 指示的时钟为 0 */
 			evutil_timerclear(&ev->ev_io_timeout);
+		 	/* 赋值倾听事件终止码 */
 			ev->ev_closure = EV_CLOSURE_EVENT_PERSIST;
 		} else {
+		 	/* 赋值倾听事件终止码 */
 			ev->ev_closure = EV_CLOSURE_EVENT;
 		}
 	}
 
+	/* 展开：ev->ev_timeout_pos.min_heap_idx = EV_SIZE_MAX;
+	 * 不知道这个地方初始化有什么用？？？
+	 * */
 	min_heap_elem_init_(ev);
 
+	/* 如果 event_base 不为空，将这个 event 的优先级
+	 * 设置为中等
+	 * */
 	if (base != NULL) {
 		/* by default, we put new events into the middle priority */
 		ev->ev_pri = base->nactivequeues / 2;
 	}
 
+	/* 调试相关的初始化 */
 	event_debug_note_setup_(ev);
 
 	return 0;
@@ -2255,7 +2294,7 @@ struct event *
 event_new(struct event_base *base, evutil_socket_t fd, short events, void (*cb)(evutil_socket_t, short, void *), void *arg)
 {
 	struct event *ev;
-	/* 重新创建一个 event */
+	/* 重新创建一个 struct event 实例 */
 	ev = mm_malloc(sizeof(struct event));
 	if (ev == NULL)
 		return (NULL);
@@ -2534,15 +2573,19 @@ event_add(struct event *ev, const struct timeval *tv)
 {
 	int res;
 
+	/* 检查是否有关联对应的 event_base 实例，如果没有则出错 */
 	if (EVUTIL_FAILURE_CHECK(!ev->ev_base)) {
 		event_warnx("%s: event has no event_base set.", __func__);
 		return -1;
 	}
 
+	/* 尝试获得 event_base 的锁 */
 	EVBASE_ACQUIRE_LOCK(ev->ev_base, th_base_lock);
 
+	/* 将 event 实例添加到 event_base 管理实例上 */
 	res = event_add_nolock_(ev, tv, 0);
 
+	/* 释放掉 event_base 的锁 */
 	EVBASE_RELEASE_LOCK(ev->ev_base, th_base_lock);
 
 	return (res);
@@ -2641,7 +2684,11 @@ event_remove_timer(struct event *ev)
 /* Implementation function to add an event.  Works just like event_add,
  * except: 1) it requires that we have the lock.  2) if tv_is_absolute is set,
  * we treat tv as an absolute time, not as an interval to add to the current
- * time */
+ * time
+ * 添加 event 到 event_base 的函数，功能类似函数 event_add，但是，执行该函数，
+ * 1。需要获得 event_base 的锁
+ * 2。如果设置了 tv_is_absolute，那么 tv 指示的时间是绝对时间，而不是相对的时间
+ * */
 int
 event_add_nolock_(struct event *ev, const struct timeval *tv,
     int tv_is_absolute)
@@ -2650,7 +2697,9 @@ event_add_nolock_(struct event *ev, const struct timeval *tv,
 	int res = 0;
 	int notify = 0;
 
+	/* 断言已经获取到了 event_base 的锁 */
 	EVENT_BASE_ASSERT_LOCKED(base);
+	/* 调试相关的初始化 */
 	event_debug_assert_is_setup_(ev);
 
 	event_debug((
@@ -2665,6 +2714,7 @@ event_add_nolock_(struct event *ev, const struct timeval *tv,
 
 	EVUTIL_ASSERT(!(ev->ev_flags & ~EVLIST_ALL));
 
+	/* 如果这个 event 对应的标志表明已经完成了初始化，那么报错 */
 	if (ev->ev_flags & EVLIST_FINALIZING) {
 		/* XXXX debug */
 		return (-1);
@@ -2674,6 +2724,7 @@ event_add_nolock_(struct event *ev, const struct timeval *tv,
 	 * prepare for timeout insertion further below, if we get a
 	 * failure on any step, we should not change any state.
 	 */
+	/* 如果传递有有效的时间信息，并且 event 事件的标志位没有置位 EVLIST_TIMEOUT */
 	if (tv != NULL && !(ev->ev_flags & EVLIST_TIMEOUT)) {
 		if (min_heap_reserve_(&base->timeheap,
 			1 + min_heap_size_(&base->timeheap)) == -1)
@@ -2684,22 +2735,34 @@ event_add_nolock_(struct event *ev, const struct timeval *tv,
 	 * callback, and we are not the main thread, then we want to wait
 	 * until the callback is done before we mess with the event, or else
 	 * we can race on ev_ncalls and ev_pncalls below. */
+	/* 如果支持多线程 */
 #ifndef EVENT__DISABLE_THREAD_SUPPORT
+	/* 如果当前正在执行的就是这个事件关联的回调函数，并且事件是信号事件
+	 * 同时还要满足当前不在一个线程？？？
+	 * */
 	if (base->current_event == event_to_event_callback(ev) &&
 	    (ev->ev_events & EV_SIGNAL)
 	    && !EVBASE_IN_THREAD(base)) {
+		/* 增加 event_base 当前的事件等待计数 */
 		++base->current_event_waiters;
 		EVTHREAD_COND_WAIT(base->current_event_cond, base->th_base_lock);
 	}
 #endif
 
+	/* 如果当前 event 倾听的事件和标志满足一定的条件，一般都会满足该条件 */
 	if ((ev->ev_events & (EV_READ|EV_WRITE|EV_CLOSED|EV_SIGNAL)) &&
 	    !(ev->ev_flags & (EVLIST_INSERTED|EVLIST_ACTIVE|EVLIST_ACTIVE_LATER))) {
+		/* 如果是一般的 IO 倾听事件 */
 		if (ev->ev_events & (EV_READ|EV_WRITE|EV_CLOSED))
 			res = evmap_io_add_(base, ev->ev_fd, ev);
+		/* 如果倾听的是信号事件 */
 		else if (ev->ev_events & EV_SIGNAL)
+			/* 关联 event_base 和 event 实例 */
 			res = evmap_signal_add_(base, (int)ev->ev_fd, ev);
 		if (res != -1)
+			/* 增加 event_base 管理的 event 的计数值
+			 * 标记这个 event 已经添加到了 event_base
+			 * */
 			event_queue_insert_inserted(base, ev);
 		if (res == 1) {
 			/* evmap says we need to notify the main thread. */
@@ -3411,14 +3474,17 @@ event_queue_insert_inserted(struct event_base *base, struct event *ev)
 {
 	EVENT_BASE_ASSERT_LOCKED(base);
 
+	/* 如果这个 event 已经被标记已经添加 */
 	if (EVUTIL_FAILURE_CHECK(ev->ev_flags & EVLIST_INSERTED)) {
 		event_errx(1, "%s: %p(fd "EV_SOCK_FMT") already inserted", __func__,
 		    ev, EV_SOCK_ARG(ev->ev_fd));
 		return;
 	}
 
+	/* 增加 event_base 管理的 event 的计数 */
 	INCR_EVENT_COUNT(base, ev->ev_flags);
 
+	/* 标记这个 event 已经添加到 event_base */
 	ev->ev_flags |= EVLIST_INSERTED;
 }
 

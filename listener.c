@@ -145,6 +145,7 @@ listener_decref_and_unlock(struct evconnlistener *listener)
 	}
 }
 
+/* 系统默认的处理倾听事件的函数集合 */
 static const struct evconnlistener_ops evconnlistener_event_ops = {
 	event_listener_enable,
 	event_listener_disable,
@@ -174,30 +175,45 @@ evconnlistener_new(struct event_base *base,
 #endif
 
 	if (backlog > 0) {
+		/* 倾听指定端口的套接字的连接
+		 * backlog：指定未完成连接的最大长度，如果一个连接请求到达时
+		 * 未完成连接并且队列已满，那么客户端将收到哦阿错误信息
+		 * ECONNREFUSED
+		 * */
 		if (listen(fd, backlog) < 0)
 			return NULL;
 	} else if (backlog < 0) {
+		/* 默认最大长度时 128 */
 		if (listen(fd, 128) < 0)
 			return NULL;
 	}
 
+	/* 申请一个 struct evconnlistener_event 实例 */
 	lev = mm_calloc(1, sizeof(struct evconnlistener_event));
 	if (!lev)
 		return NULL;
 
+	/* 初始化这个 evconnlistener_event 结构体实例
+	 * 关联系统默认的事件的函数集合
+	 * */
 	lev->base.ops = &evconnlistener_event_ops;
 	/* 关联用户定义的回调函数 */
 	lev->base.cb = cb;
+	/* 初始化用户传递给的回调函数的参数 */
 	lev->base.user_data = ptr;
 	lev->base.flags = flags;
 	lev->base.refcnt = 1;
 
+	/* 根据传递的 flags 标志初始化 struct evconnlistener 的
+	 * 相关标志
+	 * */
 	lev->base.accept4_flags = 0;
 	if (!(flags & LEV_OPT_LEAVE_SOCKETS_BLOCKING))
 		lev->base.accept4_flags |= EVUTIL_SOCK_NONBLOCK;
 	if (flags & LEV_OPT_CLOSE_ON_EXEC)
 		lev->base.accept4_flags |= EVUTIL_SOCK_CLOEXEC;
 
+	/* 如果有额外的线程安全的要求 */
 	if (flags & LEV_OPT_THREADSAFE) {
 		EVTHREAD_ALLOC_LOCK(lev->base.lock, EVTHREAD_LOCKTYPE_RECURSIVE);
 	}
@@ -232,6 +248,7 @@ evconnlistener_new_bind(struct event_base *base, evconnlistener_cb cb,
 	if (flags & LEV_OPT_CLOSE_ON_EXEC)
 		socktype |= EVUTIL_SOCK_CLOEXEC;
 
+	/* 创建一个 socket */
 	fd = evutil_socket_(family, socktype, 0);
 	if (fd == -1)
 		return NULL;
@@ -244,6 +261,7 @@ evconnlistener_new_bind(struct event_base *base, evconnlistener_cb cb,
 	}
 #endif
 	if (support_keepalive) {
+		/* 配置 socket 的保活机制 */
 		if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (void*)&on, sizeof(on))<0)
 			goto err;
 	}
@@ -268,7 +286,9 @@ evconnlistener_new_bind(struct event_base *base, evconnlistener_cb cb,
 			goto err;
 	}
 
+	/* 如果指定了端口信息 */
 	if (sa) {
+		/* 绑定 socket 和指定的端口 */
 		if (bind(fd, sa, socklen)<0)
 			goto err;
 	}

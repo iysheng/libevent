@@ -56,6 +56,8 @@
 /** An entry for an evmap_io list: notes all the events that want to read or
 	write on a given fd, and the number of each.
   */
+/* 通过 struct event_dlist 连接起来，同一个 event_base 管理的
+ * 所有的 struct evmap_io 和 struct evmap_signal 实例 */
 struct evmap_io {
 	struct event_dlist events;
 	ev_uint16_t nread;
@@ -66,6 +68,7 @@ struct evmap_io {
 /* An entry for an evmap_signal list: notes all the events that want to know
    when a signal triggers. */
 struct evmap_signal {
+	/* 展开 struct event_dlist {struct event * event} events */
 	struct event_dlist events;
 };
 
@@ -177,6 +180,11 @@ void evmap_io_clear_(struct event_io_map *ctx)
    value by calling the function 'ctor' on it.  Makes the function
    return -1 on allocation failure.
  */
+/* 获取对应编号的信号关联的 struct evmap_signal 实例，将
+ * 实例地址赋值给 x；
+ * 如果对应编号的 evmap_signal 不存在，申请对应的实例，
+ * 并通过函数 ctor 初始化该实例
+ * */
 #define GET_SIGNAL_SLOT_AND_CTOR(x, map, slot, type, ctor, fdinfo_len)	\
 	do {								\
 		if ((map)->entries[slot] == NULL) {			\
@@ -216,6 +224,7 @@ static int
 evmap_make_space(struct event_signal_map *map, int slot, int msize)
 {
 	if (map->nentries <= slot) {
+		/* 默认是 32 个 entry，跟踪 32 个信号 */
 		int nentries = map->nentries ? map->nentries : 32;
 		void **tmp;
 
@@ -228,13 +237,16 @@ evmap_make_space(struct event_signal_map *map, int slot, int msize)
 		if (nentries > INT_MAX / msize)
 			return (-1);
 
+		/* 申请所有 entry 的内存空间 */
 		tmp = (void **)mm_realloc(map->entries, nentries * msize);
 		if (tmp == NULL)
 			return (-1);
 
+		/* 初始化申请的内存空间为 0 */
 		memset(&tmp[map->nentries], 0,
 		    (nentries - map->nentries) * msize);
 
+		/* 初始化 entry 的数量，已经关联申请的 entry 的首地址 */
 		map->nentries = nentries;
 		map->entries = tmp;
 	}
@@ -449,7 +461,7 @@ evmap_io_active_(struct event_base *base, evutil_socket_t fd, short events)
 }
 
 /* code specific to signals */
-
+/* evmap_signal 默认的初始化函数 */
 static void
 evmap_signal_init(struct evmap_signal *entry)
 {
@@ -460,27 +472,40 @@ evmap_signal_init(struct evmap_signal *entry)
 int
 evmap_signal_add_(struct event_base *base, int sig, struct event *ev)
 {
+	/* 获取这个 event_base 管理信号的后端函数集合指针？？？ */
 	const struct eventop *evsel = base->evsigsel;
+	/* 事件信号的 map 抽象，使用 map 跟踪当前 event_base 管理的信号数量和
+	 * 信号 */
 	struct event_signal_map *map = &base->sigmap;
 	struct evmap_signal *ctx = NULL;
 
+	/* 检查倾听的信号值的有效性 */
 	if (sig < 0 || sig >= NSIG)
 		return (-1);
 
+	/* 如果该信号超过了 map 的范围，尝试在 map 中添加一个
+	 * entry 跟踪这个信号 */
 	if (sig >= map->nentries) {
+		/* 如果申请内存不成功，返回 -1 */
 		if (evmap_make_space(
 			map, sig, sizeof(struct evmap_signal *)) == -1)
 			return (-1);
 	}
+	/* 从 event_base 的 map 获取对应编号信号的 evmap_signal 实例，将
+	 * 该实例地址赋值给 ctx */
 	GET_SIGNAL_SLOT_AND_CTOR(ctx, map, sig, evmap_signal, evmap_signal_init,
 	    base->evsigsel->fdinfo_len);
 
+	/* 如果这个信号关联的事件为空，调用 */
 	if (LIST_EMPTY(&ctx->events)) {
+		/* 可以根据 ev_fd 可以找到对应的 event 实例首地址？？？
+		 * 应该不会在这里将 base 管理起来 event？？？ */
 		if (evsel->add(base, ev->ev_fd, 0, EV_SIGNAL, NULL)
 		    == -1)
 			return (-1);
 	}
 
+	/* 将 event 添加到 ctx-events 链表头 */
 	LIST_INSERT_HEAD(&ctx->events, ev, ev_signal_next);
 
 	return (1);

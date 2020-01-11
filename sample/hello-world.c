@@ -55,7 +55,7 @@ main(int argc, char **argv)
 		return 1;
 	}
 
-	/* 初始化 socket 打协议族和端口号 */
+	/* 初始化 socket 的协议族和端口号 */
 	sin.sin_family = AF_INET;
 	sin.sin_port = htons(PORT);
 
@@ -72,11 +72,16 @@ main(int argc, char **argv)
 		return 1;
 	}
 
-	/* 注册一个监听 SIGINT 信号的回调函数，返回一个 struct event
+	/* 注册一个监听 SIGINT 信号的回调函数，返回一个 struct event ！！！
 	 * 结构体指针
 	 * 关联 SIGINT 信号到创建出来的 listener */
 	signal_event = evsignal_new(base, SIGINT, signal_cb, (void *)base);
 
+	/* 添加 event 实例
+	 * 基本的逻辑是
+	 * 1. event_base -> map -> event
+	 * 2. event -> event_base
+	 * */
 	if (!signal_event || event_add(signal_event, NULL)<0) {
 		fprintf(stderr, "Could not create/add a signal event!\n");
 		return 1;

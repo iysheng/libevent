@@ -92,6 +92,7 @@ poll_init(struct event_base *base)
 	if (!(pollop = mm_calloc(1, sizeof(struct pollop))))
 		return (NULL);
 
+	/* 初始化 event_base 实例 */
 	evsig_init_(base);
 
 	evutil_weakrand_seed_(&base->weakrand_seed, 0);

@@ -203,6 +203,7 @@ evsig_init_(struct event_base *base)
 	base->sig.ev_signal.ev_flags |= EVLIST_INTERNAL;
 	event_priority_set(&base->sig.ev_signal, 0);
 
+	/* 信号的默认后台函数集合 */
 	base->evsigsel = &evsigops;
 
 	return 0;
@@ -276,6 +277,7 @@ evsig_set_handler_(struct event_base *base,
 	return (0);
 }
 
+/* 信号事件添加函数，该函数会将 event 添加到 event_base 实例 */
 static int
 evsig_add(struct event_base *base, evutil_socket_t evsignal, short old, short events, void *p)
 {

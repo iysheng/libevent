@@ -106,16 +106,21 @@ struct event;
 
 struct event_callback {
 	TAILQ_ENTRY(event_callback) evcb_active_next;
+	/* event 的标志，考虑是标记当前整个 event 的截断 */
 	short evcb_flags;
 	ev_uint8_t evcb_pri;	/* smaller numbers are higher priority */
+	/* 事件中止码  */
 	ev_uint8_t evcb_closure;
 	/* allows us to adopt for different types of events */
+	/* 这个联合需要注意！！！ */
         union {
+		/* event 的回调函数，参数关联的是 socket 类 ？？？ */
 		void (*evcb_callback)(evutil_socket_t, short, void *);
 		void (*evcb_selfcb)(struct event_callback *, void *);
 		void (*evcb_evfinalize)(struct event *, void *);
 		void (*evcb_cbfinalize)(struct event_callback *, void *);
 	} evcb_cb_union;
+	/* evcb_cb_union 联合的函数指针对应的参数 */
 	void *evcb_arg;
 };
 
@@ -124,15 +129,21 @@ struct event {
 	struct event_callback ev_evcallback;
 
 	/* for managing timeouts */
+	/* 管理事件超时相关的内容？？？ */
 	union {
 		TAILQ_ENTRY(event) ev_next_with_common_timeout;
 		size_t min_heap_idx;
 	} ev_timeout_pos;
+	/* 事件倾听的句柄 */
 	evutil_socket_t ev_fd;
 
+	/* 倾听的事件类型 */
 	short ev_events;
+	/* 要传递给事件回调函数具体是
+	 * 的倾听事件的返回值 */
 	short ev_res;		/* result passed to event callback */
 
+	/* 指向关联的 event_base 实例 */
 	struct event_base *ev_base;
 
 	union {
@@ -145,13 +156,16 @@ struct event {
 		/* used by signal events */
 		struct {
 			LIST_ENTRY (event) ev_signal_next;
+			/* 接收到的信号次数？？？ */
 			short ev_ncalls;
 			/* Allows deletes in callback */
+			/* 允许在回调删除，什么意思？？？ */
 			short *ev_pncalls;
 		} ev_signal;
 	} ev_;
 
 
+	/* 倾听事件的超时时间？？？ */
 	struct timeval ev_timeout;
 };
 
@@ -165,7 +179,13 @@ TAILQ_HEAD (event_list, event);
 #undef TAILQ_HEAD
 #endif
 
-LIST_HEAD (event_dlist, event); 
+LIST_HEAD (event_dlist, event);
+
+/* LIST_HEAD 宏展开
+ * struct event_dlist {
+ *     struct event *lh_first; 指向 struct event 实例，串联 struct event 的链表头
+ * }
+ */
 
 #ifdef EVENT_DEFINED_LISTENTRY_
 #undef LIST_ENTRY

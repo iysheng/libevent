@@ -152,8 +152,10 @@ HT_HEAD(event_io_map, event_map_entry);
 struct event_signal_map {
 	/* An array of evmap_io * or of evmap_signal *; empty entries are
 	 * set to NULL. */
+	/* 指向管理的所有信号的抽象 evmap_io 或者 evmap_signal 的数组指针 */
 	void **entries;
 	/* The number of entries available in entries */
+	/* 管理的所有信号的数量 */
 	int nentries;
 };
 
@@ -268,8 +270,10 @@ struct event_base {
 
 	/** Function pointers used to describe the backend that this event_base
 	 * uses for signals */
+	/* 用来描述这个 event_base 倾听的信号的后端函数集合指针？？？ */
 	const struct eventop *evsigsel;
 	/** Data to implement the common signal handler code. */
+	/* 实施通用的信号处理函数代码 */
 	struct evsig_info sig;
 
 	/** Number of virtual events */
@@ -329,9 +333,13 @@ struct event_base {
 	int n_common_timeouts_allocated;
 
 	/** Mapping from file descriptors to enabled (added) events */
+	/* 管理所有的 io 事件的实例 */
 	struct event_io_map io;
 
 	/** Mapping from signal numbers to enabled (added) events. */
+	/* 管理所有的 signal 事件的实例
+	 * event_base 通过该成员管理所有的 signal 类型的 event
+	 * */
 	struct event_signal_map sigmap;
 
 	/** Priority queue of events with timeouts. */
@@ -354,6 +362,7 @@ struct event_base {
 	/** The thread currently running the event_loop for this base */
 	unsigned long th_owner_id;
 	/** A lock to prevent conflicting accesses to this event_base */
+	/* 为了支持多线程的锁 */
 	void *th_base_lock;
 	/** A condition that gets signalled when we're done processing an
 	 * event with waiters on it. */
@@ -362,6 +371,7 @@ struct event_base {
 	int current_event_waiters;
 #endif
 	/** The event whose callback is executing right now */
+	/* 指向当前正在执行的 event_callback 实例 */
 	struct event_callback *current_event;
 
 #ifdef _WIN32
