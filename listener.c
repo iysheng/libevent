@@ -266,6 +266,9 @@ evconnlistener_new_bind(struct event_base *base, evconnlistener_cb cb,
 			goto err;
 	}
 
+	/* 一般 sample/hello-world.c 文件创建的带有这个标志
+	 * 带有复用的意思？？？
+	 * */
 	if (flags & LEV_OPT_REUSEABLE) {
 		if (evutil_make_listen_socket_reuseable(fd) < 0)
 			goto err;
@@ -293,6 +296,7 @@ evconnlistener_new_bind(struct event_base *base, evconnlistener_cb cb,
 			goto err;
 	}
 
+	/* 2020-1-12 09：09 PM */
 	listener = evconnlistener_new(base, cb, ptr, flags, backlog, fd);
 	if (!listener)
 		goto err;
