@@ -76,6 +76,7 @@ struct evconnlistener_ops {
 	struct event_base *(*getbase)(struct evconnlistener *);
 };
 
+/* 作为服务端 socket 倾听者重要的抽象 */
 struct evconnlistener {
 	const struct evconnlistener_ops *ops;
 	void *lock;
@@ -89,7 +90,9 @@ struct evconnlistener {
 };
 
 struct evconnlistener_event {
+	/* 服务端 socket 专有成员 */
 	struct evconnlistener base;
+	/* event 基本成员 */
 	struct event listener;
 };
 
@@ -145,7 +148,7 @@ listener_decref_and_unlock(struct evconnlistener *listener)
 	}
 }
 
-/* 系统默认的处理倾听事件的函数集合 */
+/* socket 服务端统默认的处理倾听事件的函数集合 */
 static const struct evconnlistener_ops evconnlistener_event_ops = {
 	event_listener_enable,
 	event_listener_disable,
@@ -177,7 +180,7 @@ evconnlistener_new(struct event_base *base,
 	if (backlog > 0) {
 		/* 倾听指定端口的套接字的连接
 		 * backlog：指定未完成连接的最大长度，如果一个连接请求到达时
-		 * 未完成连接并且队列已满，那么客户端将收到哦阿错误信息
+		 * 未完成连接并且队列已满，那么客户端将收到错误信息
 		 * ECONNREFUSED
 		 * */
 		if (listen(fd, backlog) < 0)
@@ -194,21 +197,28 @@ evconnlistener_new(struct event_base *base,
 		return NULL;
 
 	/* 初始化这个 evconnlistener_event 结构体实例
-	 * 关联系统默认的事件的函数集合
+	 * 该结构体实例的 base 是一个 evconnlistenner 实例
+	 * 使用默认的 socket 作为服务端时候的函数集合
+	 * 初始化这个 evconnlistener 实例的 ops 成员，函数集合
 	 * */
 	lev->base.ops = &evconnlistener_event_ops;
-	/* 关联用户定义的回调函数 */
+	/* 关联用户自定义的回调函数 */
 	lev->base.cb = cb;
-	/* 初始化用户传递给的回调函数的参数 */
+	/* 初始化用户传递给回调函数的参数 */
 	lev->base.user_data = ptr;
+	/* 记录初始化时的 socket 的 flags
+	 * sample/hello-world.c flags=LEV_OPT_REUSEABLE|LEV_OPT_CLOSE_ON_FREE
+	 * */
 	lev->base.flags = flags;
 	lev->base.refcnt = 1;
 
 	/* 根据传递的 flags 标志初始化 struct evconnlistener 的
-	 * 相关标志
+	 * 相关标志 sample/hello-world
+	 * flags = LEV_OPT_REUSEABLE|LEV_OPT_CLOSE_ON_FREE
 	 * */
 	lev->base.accept4_flags = 0;
 	if (!(flags & LEV_OPT_LEAVE_SOCKETS_BLOCKING))
+		/* 置位该标志 */
 		lev->base.accept4_flags |= EVUTIL_SOCK_NONBLOCK;
 	if (flags & LEV_OPT_CLOSE_ON_EXEC)
 		lev->base.accept4_flags |= EVUTIL_SOCK_CLOEXEC;
@@ -219,11 +229,16 @@ evconnlistener_new(struct event_base *base,
 	}
 
 	/* event_assign 函数定义在 event.c 文件
-	 * 分析这个函数十分重要，关联了 event_base 到 listener （这是一个 struct event 实例）
+	 * 这个函数十分重要，关联了 event_base 到 listener （这是一个 struct event 实例）
+	 * 重点是初始化一个 event 实例
 	 * */
 	event_assign(&lev->listener, base, fd, EV_READ|EV_PERSIST,
 	    listener_read_cb, lev);
 
+	/* 一般都不会置位这个标志位，所以会直接使能这个 socket
+	 * 默认作为服务端倾听 socket 的函数处理集合：evconnlistener_event_ops
+	 * 传递的参数是 evconnlistenner 实例
+	 * */
 	if (!(flags & LEV_OPT_DISABLED))
 	    evconnlistener_enable(&lev->base);
 
@@ -288,11 +303,12 @@ evconnlistener_new_bind(struct event_base *base, evconnlistener_cb cb,
 
 	/* 如果指定了端口信息 */
 	if (sa) {
-		/* 绑定 socket 和指定的端口 */
+		/* 作为服务端：绑定 socket 和指定的端口 */
 		if (bind(fd, sa, socklen)<0)
 			goto err;
 	}
 
+	/* sample/hello-world：flags == LEV_OPT_REUSEABLE|LEV_OPT_CLOSE_ON_FREE */
 	listener = evconnlistener_new(base, cb, ptr, flags, backlog, fd);
 	if (!listener)
 		goto err;
@@ -326,6 +342,7 @@ event_listener_destroy(struct evconnlistener *lev)
 	event_debug_unassign(&lev_e->listener);
 }
 
+/* 使能作为服务端倾听的 socket */
 int
 evconnlistener_enable(struct evconnlistener *lev)
 {
@@ -336,6 +353,8 @@ evconnlistener_enable(struct evconnlistener *lev)
 	if (lev->cb)
 		/* ops 关联的是 evconnlistener_event_ops
 		 * 执行 evconnlistener_event_ops 的 enable 回调函数 
+		 * event_listener_enable 函数，传递的参数是 evconnlistener 实例
+		 * 实际就是添加这个 event
 		 * */
 		r = lev->ops->enable(lev);
 	else
@@ -358,8 +377,11 @@ evconnlistener_disable(struct evconnlistener *lev)
 static int
 event_listener_enable(struct evconnlistener *lev)
 {
+	/* 倒推出 evconnlistener_event 地址
+	 * 目的是获取关联这个 evconnlistener 的 event 成员 */
 	struct evconnlistener_event *lev_e =
 	    EVUTIL_UPCAST(lev, struct evconnlistener_event, base);
+	/* 添加这个 event 实例 */
 	return event_add(&lev_e->listener, NULL);
 }
 
@@ -431,6 +453,7 @@ evconnlistener_set_error_cb(struct evconnlistener *lev,
 	UNLOCK(lev);
 }
 
+/* 服务端 socket 倾听者读取数据的回调函数 */
 static void
 listener_read_cb(evutil_socket_t fd, short what, void *p)
 {

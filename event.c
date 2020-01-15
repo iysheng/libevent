@@ -2182,7 +2182,7 @@ event_base_once(struct event_base *base, evutil_socket_t fd, short events,
 }
 
 /* 这个函数是关联 event_base 到 event 的核心！！！
- * event_new 是这个的一层包装
+ * event_new 是对这个函数的一层包装
  * */
 int
 event_assign(struct event *ev, struct event_base *base, evutil_socket_t fd, short events, void (*callback)(evutil_socket_t, short, void *), void *arg)
@@ -2216,6 +2216,7 @@ event_assign(struct event *ev, struct event_base *base, evutil_socket_t fd, shor
 	ev->ev_res = 0;
 	/* 初始化这个 event 的标志，还是回调结构体的成员
 	 * ev->ev_evcallback.evcb_flags = EVLIST_INIT;
+	 * 这个 flags 好像标记的是这个 event 的阶段？？？
 	 * */
 	ev->ev_flags = EVLIST_INIT;
 	/* ev->ev_.ev_signal.ev_ncalls = 0
