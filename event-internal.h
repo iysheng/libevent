@@ -260,6 +260,9 @@ TAILQ_HEAD(evwatch_list, evwatch);
 struct event_base {
 	/** Function pointers and other data to describe this event_base's
 	 * backend. */
+	/* 用来描述这个 event_base 函数指针以及其他数据
+	 * 很重要！！！
+	 * */
 	const struct eventop *evsel;
 	/** Pointer to backend-specific data. */
 	void *evbase;

@@ -101,6 +101,9 @@ extern const struct eventop win32ops;
 #endif
 
 /* Array of backends in order of preference. */
+/* 这个数组是倾听的关键！！！
+ * 管理了倾听的底层方法！！！
+ * */
 static const struct eventop *eventops[] = {
 #ifdef EVENT__HAVE_EVENT_PORTS
 	&evportops,
@@ -2182,7 +2185,7 @@ event_base_once(struct event_base *base, evutil_socket_t fd, short events,
 }
 
 /* 这个函数是关联 event_base 到 event 的核心！！！
- * event_new 是这个的一层包装
+ * event_new 是对这个函数的一层包装
  * */
 int
 event_assign(struct event *ev, struct event_base *base, evutil_socket_t fd, short events, void (*callback)(evutil_socket_t, short, void *), void *arg)
@@ -2216,6 +2219,7 @@ event_assign(struct event *ev, struct event_base *base, evutil_socket_t fd, shor
 	ev->ev_res = 0;
 	/* 初始化这个 event 的标志，还是回调结构体的成员
 	 * ev->ev_evcallback.evcb_flags = EVLIST_INIT;
+	 * 这个 flags 好像标记的是这个 event 的阶段？？？
 	 * */
 	ev->ev_flags = EVLIST_INIT;
 	/* ev->ev_.ev_signal.ev_ncalls = 0
@@ -2239,7 +2243,9 @@ event_assign(struct event *ev, struct event_base *base, evutil_socket_t fd, shor
 		 * */
 		ev->ev_closure = EV_CLOSURE_EVENT_SIGNAL;
 	} else {
-		/* 如果不是在倾听信号，并且有倾听持久性事件 */
+		/* 如果不是在倾听信号，并且有倾听持久性事件
+		 * socket 倾听会走到这里，eg：函数 evconnlistener_new
+		 * */
 		if (events & EV_PERSIST) {
 			/* 清零 ev_io_timeout 指示的时钟为 0 */
 			evutil_timerclear(&ev->ev_io_timeout);
@@ -2592,6 +2598,7 @@ event_get_priority(const struct event *ev)
 	return ev->ev_pri;
 }
 
+/* 将指定的 event 添加到他所属的 event_base 管理结构体 */
 int
 event_add(struct event *ev, const struct timeval *tv)
 {
@@ -2773,10 +2780,14 @@ event_add_nolock_(struct event *ev, const struct timeval *tv,
 	}
 #endif
 
-	/* 如果当前 event 倾听的事件和标志满足一定的条件，一般都会满足该条件 */
+	/* 如果当前 event 倾听的事件和标志满足一定的条件，一般都会满足该条件
+	 * ev->ev_flags 在函数 event_assign 赋值的初始值为 EVLIST_INIT
+	 * */
 	if ((ev->ev_events & (EV_READ|EV_WRITE|EV_CLOSED|EV_SIGNAL)) &&
 	    !(ev->ev_flags & (EVLIST_INSERTED|EVLIST_ACTIVE|EVLIST_ACTIVE_LATER))) {
-		/* 如果是一般的 IO 倾听事件 */
+		/* 如果是一般的 IO 倾听事件
+		 * eg：socket 倾听事件 EV_READ|EV_PERSIST
+		 * */
 		if (ev->ev_events & (EV_READ|EV_WRITE|EV_CLOSED))
 			res = evmap_io_add_(base, ev->ev_fd, ev);
 		/* 如果倾听的是信号事件 */

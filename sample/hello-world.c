@@ -60,7 +60,7 @@ main(int argc, char **argv)
 	sin.sin_port = htons(PORT);
 
 	/* 将这个 socket 关联到 event_base 实例，注册一个回调函数，返回一个
-	 * struct evconnlistener 指针
+	 * struct evconnlistener 指针，该函数关联的是网络的连接事件
 	 * */
 	listener = evconnlistener_new_bind(base, listener_cb, (void *)base,
 	    LEV_OPT_REUSEABLE|LEV_OPT_CLOSE_ON_FREE, -1,

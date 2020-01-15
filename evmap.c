@@ -202,6 +202,7 @@ void evmap_io_clear_(struct event_io_map *ctx)
 
 /* If we aren't using hashtables, then define the IO_SLOT macros and functions
    as thin aliases over the SIGNAL_SLOT versions. */
+/* 如果不使用 hash ，就直接使用数组 */
 #ifndef EVMAP_USE_HT
 #define GET_IO_SLOT(x,map,slot,type) GET_SIGNAL_SLOT(x,map,slot,type)
 #define GET_IO_SLOT_AND_CTOR(x,map,slot,type,ctor,fdinfo_len)	\
@@ -298,6 +299,7 @@ evmap_io_init(struct evmap_io *entry)
 int
 evmap_io_add_(struct event_base *base, evutil_socket_t fd, struct event *ev)
 {
+	/* 找到这个 event_base 的后端倾听方法 eg：select ... */
 	const struct eventop *evsel = base->evsel;
 	struct event_io_map *io = &base->io;
 	struct evmap_io *ctx = NULL;
@@ -312,10 +314,13 @@ evmap_io_add_(struct event_base *base, evutil_socket_t fd, struct event *ev)
 
 #ifndef EVMAP_USE_HT
 	if (fd >= io->nentries) {
+		/* 在不使用 hash 的情况下，使用数组，申请足够的内存空间
+		 * 保存 evmap_io 实例 */
 		if (evmap_make_space(io, fd, sizeof(struct evmap_io *)) == -1)
 			return (-1);
 	}
 #endif
+	/* 根据 fd 查找对应的 event_io_map 抽象实例，将首地址保存到 ctx 指针 */
 	GET_IO_SLOT_AND_CTOR(ctx, io, fd, evmap_io, evmap_io_init,
 						 evsel->fdinfo_len);
 

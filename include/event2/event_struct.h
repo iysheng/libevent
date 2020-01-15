@@ -61,6 +61,7 @@ extern "C" {
 #define EVLIST_INTERNAL	    0x10
 #define EVLIST_ACTIVE_LATER 0x20
 #define EVLIST_FINALIZING   0x40
+/* event 初始化时的标志就是 0x80 */
 #define EVLIST_INIT	    0x80
 
 #define EVLIST_ALL          0xff
