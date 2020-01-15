@@ -142,6 +142,7 @@ struct eventop {
 struct event_map_entry;
 HT_HEAD(event_io_map, event_map_entry);
 #else
+/* 如果没有使用 hash 表，直接使用数组 */
 #define event_io_map event_signal_map
 #endif
 

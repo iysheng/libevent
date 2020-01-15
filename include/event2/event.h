@@ -934,6 +934,7 @@ int event_base_got_break(struct event_base *eb);
  * When a persistent event with a timeout becomes activated, its timeout
  * is reset to 0.
  */
+/* persist 对应的是电平触发？？？ */
 #define EV_PERSIST	0x10
 /** Select edge-triggered behavior, if supported by the backend. */
 #define EV_ET		0x20

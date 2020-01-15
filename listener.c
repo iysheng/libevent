@@ -366,7 +366,7 @@ evconnlistener_enable(struct evconnlistener *lev)
 		/* ops 关联的是 evconnlistener_event_ops
 		 * 执行 evconnlistener_event_ops 的 enable 回调函数 
 		 * event_listener_enable 函数，传递的参数是 evconnlistener 实例
-		 * 实际就是添加这个 event
+		 * 实际就是添加这个 event，执行的是 event_add
 		 * */
 		r = lev->ops->enable(lev);
 	else

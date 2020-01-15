@@ -296,6 +296,7 @@ evmap_io_init(struct evmap_io *entry)
 
 /* return -1 on error, 0 on success if nothing changed in the event backend,
  * and 1 on success if something did. */
+/* 添加倾听事件抽象 event 和对应的 socket 句柄到 event_base 实例 */
 int
 evmap_io_add_(struct event_base *base, evutil_socket_t fd, struct event *ev)
 {
@@ -365,6 +366,9 @@ evmap_io_add_(struct event_base *base, evutil_socket_t fd, struct event *ev)
 		/* XXX(niels): we cannot mix edge-triggered and
 		 * level-triggered, we should probably assert on
 		 * this. */
+		/* 我们不能混合边沿除法和电平除法，应该断言
+		 * 使用 eventops 数组对应的 add 方法添加这个句柄
+		 * */
 		if (evsel->add(base, ev->ev_fd,
 			old, (ev->ev_events & EV_ET) | res, extra) == -1)
 			return (-1);

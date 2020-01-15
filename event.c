@@ -708,6 +708,9 @@ event_base_new_with_config(const struct event_config *cfg)
 
 		base->evsel = eventops[i];
 
+		/* 执行 eventops 的初始化函数
+		 * 通过 init 成员函数申请对应 eventops 的参数指针！！！
+		 * */
 		base->evbase = base->evsel->init(base);
 	}
 
@@ -2786,7 +2789,7 @@ event_add_nolock_(struct event *ev, const struct timeval *tv,
 	if ((ev->ev_events & (EV_READ|EV_WRITE|EV_CLOSED|EV_SIGNAL)) &&
 	    !(ev->ev_flags & (EVLIST_INSERTED|EVLIST_ACTIVE|EVLIST_ACTIVE_LATER))) {
 		/* 如果是一般的 IO 倾听事件
-		 * eg：socket 倾听事件 EV_READ|EV_PERSIST
+		 * eg：作为服务的 socket 倾听事件 EV_READ|EV_PERSIST
 		 * */
 		if (ev->ev_events & (EV_READ|EV_WRITE|EV_CLOSED))
 			res = evmap_io_add_(base, ev->ev_fd, ev);

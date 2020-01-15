@@ -97,6 +97,7 @@ poll_init(struct event_base *base)
 
 	evutil_weakrand_seed_(&base->weakrand_seed, 0);
 
+	/* 返回 poll 方法的参数指针 */
 	return (pollop);
 }
 
@@ -214,14 +215,18 @@ poll_dispatch(struct event_base *base, struct timeval *tv)
 	return (0);
 }
 
+/* 添加一个 poll 要倾听的事件
+ * */
 static int
 poll_add(struct event_base *base, int fd, short old, short events, void *idx_)
 {
+	/* 获取 eventop 对应 poll 方法的参数 */
 	struct pollop *pop = base->evbase;
 	struct pollfd *pfd = NULL;
 	struct pollidx *idx = idx_;
 	int i;
 
+	/* 断言非 signal 事件，检查是一般的读写事件 */
 	EVUTIL_ASSERT((events & EV_SIGNAL) == 0);
 	if (!(events & (EV_READ|EV_WRITE)))
 		return (0);
@@ -257,6 +262,7 @@ poll_add(struct event_base *base, int fd, short old, short events, void *idx_)
 		i = pop->nfds++;
 		pfd = &pop->event_set[i];
 		pfd->events = 0;
+		/* 赋值要倾听的句柄 */
 		pfd->fd = fd;
 		idx->idxplus1 = i + 1;
 	}
