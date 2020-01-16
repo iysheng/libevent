@@ -2652,6 +2652,7 @@ evutil_getenv_(const char *varname)
 ev_uint32_t
 evutil_weakrand_seed_(struct evutil_weakrand_state *state, ev_uint32_t seed)
 {
+	/* 初始化这个随即数 */
 	if (seed == 0) {
 		struct timeval tv;
 		evutil_gettimeofday(&tv, NULL);

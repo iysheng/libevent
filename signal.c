@@ -129,6 +129,7 @@ evsig_set_base_(struct event_base *base)
 }
 
 /* Callback for when the signal handler write a byte to our signaling socket */
+/* 当信号处理函数写一个字节数据到信号 socket 的回调函数？？？ */
 static void
 evsig_cb(evutil_socket_t fd, short what, void *arg)
 {
@@ -197,13 +198,16 @@ evsig_init_(struct event_base *base)
 	base->sig.sh_old = NULL;
 	base->sig.sh_old_max = 0;
 
+	/* 初始化 event_base 的 truct evsig_info 的 event 实例成员 */
 	event_assign(&base->sig.ev_signal, base, base->sig.ev_signal_pair[0],
 		EV_READ | EV_PERSIST, evsig_cb, base);
 
+	/* 标记这个 event 是内部的 event */
 	base->sig.ev_signal.ev_flags |= EVLIST_INTERNAL;
+	/* 设置这个 event 的优先级为 0 */
 	event_priority_set(&base->sig.ev_signal, 0);
 
-	/* 信号的默认后台函数集合 */
+	/* 初始化这个 event_base 处理信号的默认后台函数集合 */
 	base->evsigsel = &evsigops;
 
 	return 0;

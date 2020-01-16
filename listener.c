@@ -150,6 +150,7 @@ listener_decref_and_unlock(struct evconnlistener *listener)
 
 /* socket 服务端统默认的处理倾听事件的函数集合 */
 static const struct evconnlistener_ops evconnlistener_event_ops = {
+	/* 使能这个 evconnlistener */
 	event_listener_enable,
 	event_listener_disable,
 	event_listener_destroy,
@@ -208,7 +209,7 @@ evconnlistener_new(struct event_base *base,
 	lev->base.cb = cb;
 	/* 初始化用户传递给回调函数的参数 */
 	lev->base.user_data = ptr;
-	/* 记录初始化时的 socket 的 flags
+	/* 记录初始化时的 socket 的 flags，初始化的是 struct evconnlistener 实例
 	 * sample/hello-world.c flags=LEV_OPT_REUSEABLE|LEV_OPT_CLOSE_ON_FREE
 	 * */
 	lev->base.flags = flags;
@@ -242,7 +243,7 @@ evconnlistener_new(struct event_base *base,
 	 * 传递的参数是 evconnlistenner 实例
 	 * */
 	if (!(flags & LEV_OPT_DISABLED))
-		/* 使能这个 socket 倾听者 */
+	    /* 使能这个 socket 倾听者 */
 	    evconnlistener_enable(&lev->base);
 
 	return &lev->base;

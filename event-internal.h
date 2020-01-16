@@ -123,6 +123,9 @@ struct eventop {
 	    as part of the evmap entry for each fd, and passed as an argument
 	    to the add and del functions above.
 	 */
+	/* 用来记录每一个包含一个后者多个激活 event 的 fd 句柄的额外信息长度，
+	 * eg：对 poll 方法来说，指的是 sizeof(struct pollidx)
+	 * */
 	size_t fdinfo_len;
 };
 
@@ -274,7 +277,9 @@ struct event_base {
 
 	/** Function pointers used to describe the backend that this event_base
 	 * uses for signals */
-	/* 用来描述这个 event_base 倾听的信号的后端函数集合指针？？？ */
+	/* 用来描述这个 event_base 倾听的信号的后端函数集合指针？？？
+	 * 是不是包含的有内部 event 事件和倾听的外部信号？？？
+	 * */
 	const struct eventop *evsigsel;
 	/** Data to implement the common signal handler code. */
 	/* 实施通用的信号处理函数代码 */
@@ -413,6 +418,7 @@ struct event_base {
 
 	/** Saved seed for weak random number generator. Some backends use
 	 * this to produce fairness among sockets. Protected by th_base_lock. */
+	/* 使用这个随即数保证 sockets 之间的公平性 */
 	struct evutil_weakrand_state weakrand_seed;
 
 	/** List of event_onces that have not yet fired. */

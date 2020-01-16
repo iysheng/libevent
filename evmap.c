@@ -125,6 +125,7 @@ HT_GENERATE(event_io_map, event_map_entry, map_node, hashsocket, eqsocket,
 		(x) = ent_ ? &ent_->ent.type : NULL;			\
 	} while (0);
 
+/* fdinfo_len 指的是额外信息的长度！！！ */
 #define GET_IO_SLOT_AND_CTOR(x, map, slot, type, ctor, fdinfo_len)	\
 	do {								\
 		struct event_map_entry key_, *ent_;			\
@@ -185,7 +186,8 @@ void evmap_io_clear_(struct event_io_map *ctx)
  */
 /* 获取对应编号的信号关联的 struct evmap_signal 实例，将
  * 实例地址赋值给 x；
- * 如果对应编号的 evmap_signal 不存在，申请对应的实例，
+ * 如果对应编号的 evmap_signal 不存在，申请对应的实例内存空间（包含有额外的信息长度 fdinfo_len 
+ * 这个内容根据不同的轮询方法不一样），
  * 并通过函数 ctor 初始化该实例
  * */
 #define GET_SIGNAL_SLOT_AND_CTOR(x, map, slot, type, ctor, fdinfo_len)	\
@@ -228,13 +230,14 @@ static int
 evmap_make_space(struct event_signal_map *map, int slot, int msize)
 {
 	if (map->nentries <= slot) {
-		/* 默认是 32 个 entry，跟踪 32 个信号 */
+		/* 如果是首次分配内存，默认是 32 个 entry，跟踪 32 个信号 */
 		int nentries = map->nentries ? map->nentries : 32;
 		void **tmp;
 
 		if (slot > INT_MAX / 2)
 			return (-1);
 
+		/* entry 的数量乘以 2 的速度扩大 */
 		while (nentries <= slot)
 			nentries <<= 1;
 
@@ -250,7 +253,8 @@ evmap_make_space(struct event_signal_map *map, int slot, int msize)
 		memset(&tmp[map->nentries], 0,
 		    (nentries - map->nentries) * msize);
 
-		/* 初始化 entry 的数量，已经关联申请的 entry 的首地址 */
+		/* 初始化 entry 的数量，
+		 * 初始化已经关联申请的 entry 的首地址为申请的首地址 */
 		map->nentries = nentries;
 		map->entries = tmp;
 	}
@@ -287,6 +291,7 @@ evmap_signal_clear_(struct event_signal_map *ctx)
 static void
 evmap_io_init(struct evmap_io *entry)
 {
+	/* 初始化这个 entry 的链表头 */
 	LIST_INIT(&entry->events);
 	entry->nread = 0;
 	entry->nwrite = 0;
@@ -313,7 +318,9 @@ evmap_io_add_(struct event_base *base, evutil_socket_t fd, struct event *ev)
 	if (fd < 0)
 		return 0;
 
+/* 不是用 hash 表管理这个事件 map，使用的是一般的数组管理 */
 #ifndef EVMAP_USE_HT
+	/* 如果 fd 已经超出了目前 event_io_map 最大的存储条目数量，需要重新分配内存 */
 	if (fd >= io->nentries) {
 		/* 在不使用 hash 的情况下，使用数组，申请足够的内存空间
 		 * 保存 evmap_io 实例 */
@@ -321,10 +328,13 @@ evmap_io_add_(struct event_base *base, evutil_socket_t fd, struct event *ev)
 			return (-1);
 	}
 #endif
-	/* 根据 fd 查找对应的 event_io_map 抽象实例，将首地址保存到 ctx 指针 */
+	/* 根据 fd 查找对应的 event_io_map 抽象实例，将首地址保存到 ctx 指针
+	 * 并且需要函数 evmap_io_init 初始化获取的新的成员
+	 * */
 	GET_IO_SLOT_AND_CTOR(ctx, io, fd, evmap_io, evmap_io_init,
 						 evsel->fdinfo_len);
 
+	/* 首次申请出来 ctx 的成员值为 0 */
 	nread = ctx->nread;
 	nwrite = ctx->nwrite;
 	nclose = ctx->nclose;
@@ -353,6 +363,7 @@ evmap_io_add_(struct event_base *base, evutil_socket_t fd, struct event *ev)
 		    (int)fd);
 		return -1;
 	}
+	/* 如果开启了调试模式 */
 	if (EVENT_DEBUG_MODE_IS_ON() &&
 	    (old_ev = LIST_FIRST(&ctx->events)) &&
 	    (old_ev->ev_events&EV_ET) != (ev->ev_events&EV_ET)) {
@@ -362,12 +373,16 @@ evmap_io_add_(struct event_base *base, evutil_socket_t fd, struct event *ev)
 	}
 
 	if (res) {
+		/* 获取对应方法的额外信息，这个内容是对应方法 eventops 实例的
+		 * size_t fdinfo_len 成员，以 poll 方法为例，这个是一个
+		 * struct pollidx 结构体指针 */
 		void *extra = ((char*)ctx) + sizeof(struct evmap_io);
 		/* XXX(niels): we cannot mix edge-triggered and
 		 * level-triggered, we should probably assert on
 		 * this. */
 		/* 我们不能混合边沿除法和电平除法，应该断言
 		 * 使用 eventops 数组对应的 add 方法添加这个句柄
+		 * 以 poll 方法为例，这个动作执行的是 poll_add 函数
 		 * */
 		if (evsel->add(base, ev->ev_fd,
 			old, (ev->ev_events & EV_ET) | res, extra) == -1)

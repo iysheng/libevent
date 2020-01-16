@@ -36,6 +36,7 @@ typedef void (*ev_sighandler_t)(int);
 
 /* Data structure for the default signal-handling implementation in signal.c
  */
+/* 默认的信号处理函数的方法 */
 struct evsig_info {
 	/* Event watching ev_signal_pair[1] */
 	struct event ev_signal;

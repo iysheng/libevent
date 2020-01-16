@@ -57,11 +57,20 @@ struct pollidx {
 	int idxplus1;
 };
 
+/* 每一个 event_base 在 poll 方法时对应唯一的一个
+ * pollop 实例，管理所有的 event，每一个 event 对应唯一的一个 pollidx 实例作为
+ * poll 方法时的额外信息！！！
+ * */
 struct pollop {
+	/* 申请的 event 的数量，在申请 event 额外信息内粗空间时会将申请的数量赋值给该成员 */
 	int event_count;		/* Highest number alloc */
+	/* 使用的最大数量 */
 	int nfds;			/* Highest number used */
-	int realloc_copy;		/* True iff we must realloc
+	int realloc_copy;		/* True if we must realloc
 					 * event_set_copy */
+	/* 管理 poll 方法，每一个 event 需要的额外信息的首地址指针
+	 * 在首次 poll_add 的时候会申请这段空间内存赋值给该值
+	 * */
 	struct pollfd *event_set;
 	struct pollfd *event_set_copy;
 };
@@ -71,6 +80,7 @@ static int poll_add(struct event_base *, int, short old, short events, void *idx
 static int poll_del(struct event_base *, int, short old, short events, void *idx);
 static int poll_dispatch(struct event_base *, struct timeval *);
 static void poll_dealloc(struct event_base *);
+
 
 const struct eventop pollops = {
 	"poll",
@@ -89,12 +99,14 @@ poll_init(struct event_base *base)
 {
 	struct pollop *pollop;
 
+	/* 申请一个 pollop 内存空间 */
 	if (!(pollop = mm_calloc(1, sizeof(struct pollop))))
 		return (NULL);
 
-	/* 初始化 event_base 实例 */
+	/* 初始化 event_base 的 struct evsig_info sig 成员！！！ */
 	evsig_init_(base);
 
+	/* 初始化这个 event_base 的随即数 */
 	evutil_weakrand_seed_(&base->weakrand_seed, 0);
 
 	/* 返回 poll 方法的参数指针 */
@@ -215,12 +227,15 @@ poll_dispatch(struct event_base *base, struct timeval *tv)
 	return (0);
 }
 
-/* 添加一个 poll 要倾听的事件
+/* 添加一个 poll 方法要倾听的事件
  * */
 static int
 poll_add(struct event_base *base, int fd, short old, short events, void *idx_)
 {
-	/* 获取 eventop 对应 poll 方法的参数 */
+	/* 获取 eventop 对应方法的参数，这个值一般是在 base 对应的 eventops 成员
+	 * 函数集合的 init 函数初始化获取的！！！
+	 * 对于 poll 方法而言，这个是一个 struct pollop 结构体指针
+	 * */
 	struct pollop *pop = base->evbase;
 	struct pollfd *pfd = NULL;
 	struct pollidx *idx = idx_;
@@ -232,42 +247,59 @@ poll_add(struct event_base *base, int fd, short old, short events, void *idx_)
 		return (0);
 
 	poll_check_ok(pop);
+	/* 如果使用的最大数量超过或者即将超过申请的最大数量的 event
+	 * 需要重新分配内存空间
+	 * */
 	if (pop->nfds + 1 >= pop->event_count) {
 		struct pollfd *tmp_event_set;
 		int tmp_event_count;
 
 		if (pop->event_count < 32)
+			/* 默认首次分配的是 32 个 */
 			tmp_event_count = 32;
 		else
+			/* 内存扩展，也是以乘以 2 的速度增加，和
+			 * event_io_map 一致，是否是巧合？？？ */
 			tmp_event_count = pop->event_count * 2;
 
 		/* We need more file descriptors */
+		/* 申请需要的内存空间 */
 		tmp_event_set = mm_realloc(pop->event_set,
 				 tmp_event_count * sizeof(struct pollfd));
 		if (tmp_event_set == NULL) {
 			event_warn("realloc");
 			return (-1);
 		}
+		/* 将首地址赋值给 pollop 的 event_set 成员 */
 		pop->event_set = tmp_event_set;
 
+		/* 记录申请的最大计数，赋值给 pollop 的 event_count 成员 */
 		pop->event_count = tmp_event_count;
+		/* 这个标志为 1 的目的是什么？？？ */
 		pop->realloc_copy = 1;
 	}
 
+	/* poll 方法关联的一个 event 的额外信息值 - 1，目的是什么？？？ */
 	i = idx->idxplus1 - 1;
 
 	if (i >= 0) {
 		pfd = &pop->event_set[i];
-	} else {
+	} else { /* 如果在 else 这里，说明这是首次添加这个 fd ？？？ */
+		/* 获取当前这个 event_base poll 方法时使用的 nfds，从 0 开始编号 */
 		i = pop->nfds++;
+		/* 获取这个 event 关联的 pollfd 实例的首地址 */
 		pfd = &pop->event_set[i];
+		/* 初始化这个 pollfd 的倾听的事件类型为 0 */
 		pfd->events = 0;
-		/* 赋值要倾听的句柄 */
+		/* 赋值要倾听的句柄给这个 pfd */
 		pfd->fd = fd;
+		/* 赋值这个 pollfd 的编号给 idx ，idx 时每一个 event 的额外信息指针 */
 		idx->idxplus1 = i + 1;
 	}
 
+	/* 初始化这个 pfd 实际发生的事件类型为 0 */
 	pfd->revents = 0;
+	/* 根据 event 的编制设置对应 poll 方法的标志位 */
 	if (events & EV_WRITE)
 		pfd->events |= POLLOUT;
 	if (events & EV_READ)

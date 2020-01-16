@@ -2472,17 +2472,18 @@ event_callback_finalize_many_(struct event_base *base, int n_cbs, struct event_c
  * Set's the priority of an event - if an event is already scheduled
  * changing the priority is going to fail.
  */
-
 int
 event_priority_set(struct event *ev, int pri)
 {
 	event_debug_assert_is_setup_(ev);
 
+	/* 如果这个 event 已经被激活，那么返回错误 */
 	if (ev->ev_flags & EVLIST_ACTIVE)
 		return (-1);
 	if (pri < 0 || pri >= ev->ev_base->nactivequeues)
 		return (-1);
 
+	/* 设置这个 event 的优先级 */
 	ev->ev_pri = pri;
 
 	return (0);
@@ -2720,8 +2721,8 @@ event_remove_timer(struct event *ev)
  * we treat tv as an absolute time, not as an interval to add to the current
  * time
  * 添加 event 到 event_base 的函数，功能类似函数 event_add，但是，执行该函数，
- * 1。需要获得 event_base 的锁
- * 2。如果设置了 tv_is_absolute，那么 tv 指示的时间是绝对时间，而不是相对的时间
+ * 1. 需要获得 event_base 的锁
+ * 2. 如果设置了 tv_is_absolute，那么 tv 指示的时间是绝对时间，而不是相对的时间
  * */
 int
 event_add_nolock_(struct event *ev, const struct timeval *tv,
