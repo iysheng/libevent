@@ -39,6 +39,9 @@
 typedef struct min_heap
 {
 	struct event** p;
+	/* n：表示超时事件的数量？？？
+	 * a：表示
+	 * */
 	size_t n, a;
 } min_heap_t;
 

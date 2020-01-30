@@ -6,7 +6,6 @@
   Where possible, it exits cleanly in response to a SIGINT (ctrl-c).
 */
 
-
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
@@ -107,8 +106,9 @@ listener_cb(struct evconnlistener *listener, evutil_socket_t fd,
 	struct event_base *base = user_data;
 	struct bufferevent *bev;
 
-	/* 申请 bufferevent 缓冲区 */
+	/* 申请 bufferevent 缓冲区，这个 fd 是建立链接时候新创建的 fd */
 	bev = bufferevent_socket_new(base, fd, BEV_OPT_CLOSE_ON_FREE);
+	fprintf(stdout, "%s fd=%d\n", __func__, fd);
 	if (!bev) {
 		fprintf(stderr, "Error constructing bufferevent!");
 		event_base_loopbreak(base);
@@ -126,9 +126,13 @@ static void
 conn_writecb(struct bufferevent *bev, void *user_data)
 {
 	struct evbuffer *output = bufferevent_get_output(bev);
+
+	printf("hello libevent\n");
 	if (evbuffer_get_length(output) == 0) {
 		printf("flushed answer\n");
 		bufferevent_free(bev);
+	} else {
+	    printf("no zeros\n");
 	}
 }
 
@@ -146,7 +150,7 @@ conn_eventcb(struct bufferevent *bev, short events, void *user_data)
 	bufferevent_free(bev);
 }
 
-/* 监听 SIGINT 信号的回调函数 */
+/* 倾听 SIGINT 信号的回调函数 */
 static void
 signal_cb(evutil_socket_t sig, short events, void *user_data)
 {

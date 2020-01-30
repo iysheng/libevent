@@ -43,6 +43,7 @@ struct evsig_info {
 	/* Socketpair used to send notifications from the signal handler */
 	evutil_socket_t ev_signal_pair[2];
 	/* True if we've added the ev_signal event yet. */
+	/* 如果已经添加了倾听的信号，这个值为 真 */
 	int ev_signal_added;
 	/* Count of the number of signals we're currently watching. */
 	/* 正在倾听的信号的数量 */

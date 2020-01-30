@@ -1677,11 +1677,15 @@ event_process_active_single_queue(struct event_base *base,
 
 	EVUTIL_ASSERT(activeq != NULL);
 
+	/* 从这个 tailq 获取以及激活的 event 的回调抽象实例 struct event_callback */
 	for (evcb = TAILQ_FIRST(activeq); evcb; evcb = TAILQ_FIRST(activeq)) {
 		struct event *ev=NULL;
 		if (evcb->evcb_flags & EVLIST_INIT) {
+			/* 根据 evcb 获取 ev 实例，添加到 event_base 管理的激活队列
+			 * 时是根据 event 反推的 event_callback */
 			ev = event_callback_to_event(evcb);
 
+			/* 从 event_base 管理的激活 tailq 删除这个 event */
 			if (ev->ev_events & EV_PERSIST || ev->ev_flags & EVLIST_FINALIZING)
 				event_queue_remove_active(base, evcb);
 			else
@@ -1704,11 +1708,14 @@ event_process_active_single_queue(struct event_base *base,
 			++count;
 
 
+		/* 赋值当前 event_base 正在处理的 event_callback 实例指针 */
 		base->current_event = evcb;
 #ifndef EVENT__DISABLE_THREAD_SUPPORT
 		base->current_event_waiters = 0;
 #endif
 
+		/* 这个 evcb 的类型是在创建这个 event 的时候确定下来的
+		 * 具体看函数 event_assign */
 		switch (evcb->evcb_closure) {
 		case EV_CLOSURE_EVENT_SIGNAL:
 			EVUTIL_ASSERT(ev != NULL);
@@ -1722,9 +1729,11 @@ event_process_active_single_queue(struct event_base *base,
 			void (*evcb_callback)(evutil_socket_t, short, void *);
 			short res;
 			EVUTIL_ASSERT(ev != NULL);
+			/* 获取这个 event 的回调函数指针 */
 			evcb_callback = *ev->ev_callback;
 			res = ev->ev_res;
 			EVBASE_RELEASE_LOCK(base, th_base_lock);
+			/* 执行这个 event 的回调函数！！！ */
 			evcb_callback(ev->ev_fd, res, ev->ev_arg);
 		}
 		break;
@@ -1762,6 +1771,7 @@ event_process_active_single_queue(struct event_base *base,
 		}
 
 		EVBASE_ACQUIRE_LOCK(base, th_base_lock);
+		/* 处理完对应的 event 的回调函数，清零 current_event 成员 */
 		base->current_event = NULL;
 #ifndef EVENT__DISABLE_THREAD_SUPPORT
 		if (base->current_event_waiters) {
@@ -1792,7 +1802,9 @@ event_process_active_single_queue(struct event_base *base,
  * process before higher priorities.  Low priority events can starve high
  * priority ones.
  */
-
+/* 激活的 event 存储在优先级队列，低优先级值的事件总是先于高优先级值的事件执行;
+ * 所以高优先级值的事件可能会处于饥饿状态（优先级的数值越高，优先级越低）
+ * */
 static int
 event_process_active(struct event_base *base)
 {
@@ -1813,9 +1825,12 @@ event_process_active(struct event_base *base)
 	}
 
 	for (i = 0; i < base->nactivequeues; ++i) {
-		/* 从 tailq 获取一个已经激活的队列 */
+		/* 根据优先级的高低，从高优先级开始
+		 * 从 event_base 管理激活的 tailq 获取一个非空的已经激活的队列 */
 		if (TAILQ_FIRST(&base->activequeues[i]) != NULL) {
+			/* 赋值当前 event_base 正在处理的 event 的优先级 */
 			base->event_running_priority = i;
+			/* 获取这个优先级的 tailq */
 			activeq = &base->activequeues[i];
 			if (i < limit_after_prio)
 				c = event_process_active_single_queue(base, activeq,
@@ -1988,7 +2003,9 @@ event_base_loop(struct event_base *base, int flags)
 	/* 清零 event_base 时间 */
 	clear_time_cache(base);
 
+	/* 如果已经添加了需要倾听的信号，并且信号的数量不为 0 */
 	if (base->sig.ev_signal_added && base->sig.ev_n_signals_added)
+		/* 根据 base 关于信号有关的内容，初始化 signal.c 文件关于信号相关的静态全局变量 */
 		evsig_set_base_(base);
 
 	done = 0;
@@ -1999,6 +2016,7 @@ event_base_loop(struct event_base *base, int flags)
 
 	base->event_gotterm = base->event_break = 0;
 
+	/* 应该会一直陷在这个循环 */
 	while (!done) {
 		base->event_continue = 0;
 		base->n_deferreds_queued = 0;
@@ -2013,7 +2031,12 @@ event_base_loop(struct event_base *base, int flags)
 		}
 
 		tv_p = &tv;
+		/* 如果当前 base 激活的 event 数量为 0
+		 * 并且没有设置非阻塞标志位
+		 * */
 		if (!N_ACTIVE_CALLBACKS(base) && !(flags & EVLOOP_NONBLOCK)) {
+			/* tv_p 保存的是距离下一个 event 因为超时处于激活状态的
+			 * 时间信息 */
 			timeout_next(base, &tv_p);
 		} else {
 			/*
@@ -2024,6 +2047,8 @@ event_base_loop(struct event_base *base, int flags)
 		}
 
 		/* If we have no events, we just exit */
+		/* 如果没有 event 关联到这个 event_base 上并且当前 event_base 
+		 * 关联的激活的 event 数量也是 0，那么就可以跳出这个循环 */
 		if (0==(flags&EVLOOP_NO_EXIT_ON_EMPTY) &&
 		    !event_haveevents(base) && !N_ACTIVE_CALLBACKS(base)) {
 			event_debug(("%s: no events registered.", __func__));
@@ -2031,11 +2056,16 @@ event_base_loop(struct event_base *base, int flags)
 			goto done;
 		}
 
+		/* 将延后激活的事件设置为激活状态 */
 		event_queue_make_later_events_active(base);
 
 		/* Invoke prepare watchers before polling for events */
+		/* 将距离下一个 event 因为超时处于激活状态的时间信息指针赋值给 prepare_info 实例的
+		 * timeout 成员 */
 		prepare_info.timeout = tv_p;
-		/* 循环遍历所有的 event_base 关联的事件 */
+		/* 使用 event_base 的 prepare 方法，
+		 * 循环遍历所有的 event_base 关联的事件，如果没有通过函数 evwatch_prepare_new 注册
+		 * prepare 方法，那么这里应该是空操作 */
 		TAILQ_FOREACH(watcher, &base->watchers[EVWATCH_PREPARE], next) {
 			/* 释放 event_base 的锁 */
 			EVBASE_RELEASE_LOCK(base, th_base_lock);
@@ -2045,9 +2075,16 @@ event_base_loop(struct event_base *base, int flags)
 			EVBASE_ACQUIRE_LOCK(base, th_base_lock);
 		}
 
+		/* 清零 base 的 tv_cache.tv_sec = 0 */
 		clear_time_cache(base);
 
-		/* dispatch 派遣，调度 */
+		/* dispatch 派遣，调度
+		 * 对于 linux 默认的是 epoll 测略，对应的 evsel 是 epollops 实例
+		 * 对应的 dispatch 方法是 epoll_dispatch，通过 epoll 对应的系统调用
+		 * 倾听对应句柄的事件，如果有倾听到事件，那么会将对应的 event 状态置为
+		 * 激活状态，并且会将这些 event 的回调的抽象 struct event_callback 根据
+		 * 优先级添加到 event_base 的 activequeues 成员管理的激活队列
+		 * */
 		res = evsel->dispatch(base, tv_p);
 
 		if (res == -1) {
@@ -2062,11 +2099,14 @@ event_base_loop(struct event_base *base, int flags)
 		 * 也就是更新 event_base 的 cache 时间
 		 * 如果没有置位 event_base flags 的 EVENT_BASE_FLAG_NO_CACHE_TIME
 		 * 标志位，那么会直接赋值 0，后续检测到为 0 时，表示没有 cache 系统
-		 * 时间
+		 * 时间，一般地为了系统性能都不会显式声明不 cache 时间，如果不 cache
+		 * 时间则会频繁地通过系统调用获取内核时间，增大负载
 		 * */
 		update_time_cache(base);
 
-		/* 做一些检查？？？ */
+		/* 使用 event_base 的 check 方法，
+		 * 循环遍历所有的 event_base 关联的事件，如果没有通过函数 evwatch_check_new 注册
+		 * check 方法，那么这里应该是空操作 */
 		/* Invoke check watchers after polling for events, and before
 		 * processing them */
 		TAILQ_FOREACH(watcher, &base->watchers[EVWATCH_CHECK], next) {
@@ -2076,20 +2116,21 @@ event_base_loop(struct event_base *base, int flags)
 			EVBASE_ACQUIRE_LOCK(base, th_base_lock);
 		}
 
-		/* 处理那些已经超时的事件 */
+		/* 根据优先级将那些超时的 event 添加到
+		 * event_base 的成员 activequeues 管理的激活 tailq */
 		timeout_process(base);
 
-		/* 如果这个 event_base 管理的仍然存在
-		 * 已经激活的 event 事件
+		/* 如果这个 event_base 管理的激活的 event 事件不为 0
 		 * */
 		if (N_ACTIVE_CALLBACKS(base)) {
-			/* 继续处理已经激活的 event 事件 */
+			/* 处理已经激活的 event 事件 */
 			int n = event_process_active(base);
+			/* 如果只循环处理一次倾听事件的回调函数，那么处理过后跳出 while 循环 */
 			if ((flags & EVLOOP_ONCE)
 			    && N_ACTIVE_CALLBACKS(base) == 0
 			    && n != 0)
 				done = 1;
-		} else if (flags & EVLOOP_NONBLOCK)
+		} else if (flags & EVLOOP_NONBLOCK) /* 获取如果设置了非阻塞循环的标志位，那么也跳出 while 循环 */
 			done = 1;
 	}
 	event_debug(("%s: asked to terminate loop.", __func__));
@@ -2255,7 +2296,9 @@ event_assign(struct event *ev, struct event_base *base, evutil_socket_t fd, shor
 		 	/* 赋值倾听事件终止码 */
 			ev->ev_closure = EV_CLOSURE_EVENT_PERSIST;
 		} else {
-		 	/* 赋值倾听事件终止码 */
+		 	/* 赋值倾听事件终止码
+			 * 一般地都是 EV_CLOSURE_EVENT
+			 * */
 			ev->ev_closure = EV_CLOSURE_EVENT;
 		}
 	}
@@ -2996,7 +3039,7 @@ event_del_nolock_(struct event *ev, int blocking)
 	}
 
 	/* 如果这个 event 的标志位有设置 EVLIST_TIMEOUT
-	 * 标记这个 event 已经超时？？？
+	 * 将这个 event 从 event_base 管理的超时事件删除
 	 * */
 	if (ev->ev_flags & EVLIST_TIMEOUT) {
 		/* NOTE: We never need to notify the main thread because of a
@@ -3088,7 +3131,6 @@ event_active(struct event *ev, int res, short ncalls)
 	EVBASE_RELEASE_LOCK(ev->ev_base, th_base_lock);
 }
 
-
 void
 event_active_nolock_(struct event *ev, int res, short ncalls)
 {
@@ -3146,7 +3188,8 @@ event_active_nolock_(struct event *ev, int res, short ncalls)
 		ev->ev_pncalls = NULL;
 	}
 
-	/* 在这个函数完成执行该 event 的回调函数 */
+	/* 在这个函数完成将该 event 的回调抽象添加到 event_base 的 activequeues 
+	 * 成员管理的激活队列，根据 event 的优先级排序 */
 	event_callback_activate_nolock_(base, event_to_event_callback(ev));
 }
 
@@ -3209,6 +3252,7 @@ event_callback_activate_nolock_(struct event_base *base,
 		break;
 	}
 
+	/* 在添加 event 到 event_base 之前，会将这个 event 的标志置为激活状态 */
 	event_queue_insert_active(base, evcb);
 
 	if (EVBASE_NEED_NOTIFY(base))
@@ -3332,6 +3376,7 @@ timeout_next(struct event_base *base, struct timeval **tv_p)
 	struct timeval *tv = *tv_p;
 	int res = 0;
 
+	/* 获取最近超时的事件？？？ */
 	ev = min_heap_top_(&base->timeheap);
 
 	if (ev == NULL) {
@@ -3340,16 +3385,21 @@ timeout_next(struct event_base *base, struct timeval **tv_p)
 		goto out;
 	}
 
+	/* 根据 event_base 获取当前的时间 */
 	if (gettime(base, &now) == -1) {
 		res = -1;
 		goto out;
 	}
 
+	/* 对比这个超时 event 的超时时间和当前的时间
+	 * 如果这个 event 已经超时，那么清零 tv 指向的时间信息
+	 * */
 	if (evutil_timercmp(&ev->ev_timeout, &now, <=)) {
 		evutil_timerclear(tv);
 		goto out;
 	}
 
+	/* 修正tv 指向的时间信息，保存的是距离下一个 event 处于激活状态的时间信息 */
 	evutil_timersub(&ev->ev_timeout, &now, tv);
 
 	EVUTIL_ASSERT(tv->tv_sec >= 0);
@@ -3377,6 +3427,7 @@ timeout_process(struct event_base *base)
 	/* 获取当前 event_base 的时间 */
 	gettime(base, &now);
 
+	/* 按照超时的先后顺序获取 event */
 	while ((ev = min_heap_top_(&base->timeheap))) {
 		/* 对比 event 的时间和 event_base 的时间
 		 * 如果 event 的时间比 event_base 的时间要晚，也就是说
@@ -3391,6 +3442,8 @@ timeout_process(struct event_base *base)
 
 		event_debug(("timeout_process: event: %p, call %p",
 			 ev, ev->ev_callback));
+		/* 激活超时的 event ，通过这个函数触发标记这个 event 的 evcb_flags 为
+		 * 激活状态 */
 		event_active_nolock_(ev, EV_TIMEOUT, 1);
 	}
 }
@@ -3585,7 +3638,7 @@ event_queue_insert_active(struct event_base *base, struct event_callback *evcb)
 	/* 添加 event_base 管理的 event 的计数 */
 	INCR_EVENT_COUNT(base, evcb->evcb_flags);
 
-	/* 标记这个 event 已经激 */
+	/* 标记这个 event 已经激活！！！ */
 	evcb->evcb_flags |= EVLIST_ACTIVE;
 
 	/* 添加 event_base 管理的已经激活的 event 的计数 */
@@ -3645,11 +3698,15 @@ event_queue_make_later_events_active(struct event_base *base)
 	struct event_callback *evcb;
 	EVENT_BASE_ASSERT_LOCKED(base);
 
+	/* 从 event_base 管理的需要下次激活的 event 的 tailq 取出 event
+	 * 根据这个 event 的优先级，添加到对应优先级的 tailq
+	 * 同时 */
 	while ((evcb = TAILQ_FIRST(&base->active_later_queue))) {
 		TAILQ_REMOVE(&base->active_later_queue, evcb, evcb_active_next);
 		evcb->evcb_flags = (evcb->evcb_flags & ~EVLIST_ACTIVE_LATER) | EVLIST_ACTIVE;
 		EVUTIL_ASSERT(evcb->evcb_pri < base->nactivequeues);
 		TAILQ_INSERT_TAIL(&base->activequeues[evcb->evcb_pri], evcb, evcb_active_next);
+		/* 为什么需要和 EV_CLOSURE_CB_SELF 比较？？？ */
 		base->n_deferreds_queued += (evcb->evcb_closure == EV_CLOSURE_CB_SELF);
 	}
 }

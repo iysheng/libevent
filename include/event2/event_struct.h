@@ -110,8 +110,10 @@ struct event_callback {
 	TAILQ_ENTRY(event_callback) evcb_active_next;
 	/* event 的标志，考虑是标记当前整个 event 的阶段 */
 	short evcb_flags;
+	/* event 回调抽象的优先级，数值越小，优先级越高 */
 	ev_uint8_t evcb_pri;	/* smaller numbers are higher priority */
-	/* 事件中止码  */
+	/* 在处理激活的 event 的时候，根据这个
+	 * 值执行 event_callback 不同的回调函数成员（一个 union）  */
 	ev_uint8_t evcb_closure;
 	/* allows us to adopt for different types of events */
 	/* 这个联合需要注意！！！ */
@@ -142,7 +144,7 @@ struct event {
 	/* 倾听的事件类型 */
 	short ev_events;
 	/* 要传递给事件回调函数具体是
-	 * 的倾听事件的返回值 */
+	 * 的倾听事件类型（eg:EV_TIMEOUT、EV_READ、EV_WRITE、EV_SIGNAL） */
 	short ev_res;		/* result passed to event callback */
 
 	/* 指向关联的 event_base 实例 */

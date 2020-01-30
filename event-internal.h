@@ -269,6 +269,8 @@ struct event_base {
 	 * */
 	const struct eventop *evsel;
 	/** Pointer to backend-specific data. */
+	/* 后端专门的数据，和 event_base 的测略强相关（比如：epoll 对应的是 struct epollop
+	 * select 对应的是 struct selectop ...） */
 	void *evbase;
 
 	/** List of changes to tell backend about at next dispatch.  Only used
@@ -317,6 +319,7 @@ struct event_base {
 	 * loop.  This is a hack to prevent starvation; it would be smarter
 	 * to just use event_config_set_max_dispatch_interval's max_callbacks
 	 * feature */
+	/* 记录在循环中，设置延后激活 event 为激活状态的事件数量 */
 	int n_deferreds_queued;
 
 	/* Active event management. */
@@ -359,6 +362,7 @@ struct event_base {
 	struct event_signal_map sigmap;
 
 	/** Priority queue of events with timeouts. */
+	/* 管理超时事件的优先级队列？？？ */
 	struct min_heap timeheap;
 
 	/** Stored timeval: used to avoid calling gettimeofday/clock_gettime
@@ -388,7 +392,9 @@ struct event_base {
 	int current_event_waiters;
 #endif
 	/** The event whose callback is executing right now */
-	/* 指向当前正在执行的 event_callback 实例 */
+	/* 指向当前正在执行的 event_callback 实例
+	 * 在处理激活 event 的时候会对该值赋值
+	 * */
 	struct event_callback *current_event;
 
 #ifdef _WIN32

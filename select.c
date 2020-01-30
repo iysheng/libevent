@@ -109,6 +109,7 @@ static void select_free_selectop(struct selectop *sop);
 static void *
 select_init(struct event_base *base)
 {
+	/* select 测率专有的数据结构实例 */
 	struct selectop *sop;
 
 	if (!(sop = mm_calloc(1, sizeof(struct selectop))))

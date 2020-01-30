@@ -417,6 +417,7 @@ static int
 epoll_dispatch(struct event_base *base, struct timeval *tv)
 {
 	struct epollop *epollop = base->evbase;
+	/* 获取 base 管理的 event 事件 */
 	struct epoll_event *events = epollop->events;
 	int i, res;
 	long timeout = -1;
@@ -462,10 +463,13 @@ epoll_dispatch(struct event_base *base, struct timeval *tv)
 
 	EVBASE_RELEASE_LOCK(base, th_base_lock);
 
+	/* 等待 event 事件激活，返回激活的 event 的数量，这时候就是依赖的是 epoll
+	 * 的系统调用了！！！ */
 	res = epoll_wait(epollop->epfd, events, epollop->nevents, timeout);
 
 	EVBASE_ACQUIRE_LOCK(base, th_base_lock);
 
+	/* 如果没有倾听到激活的事件，那么返回 */
 	if (res == -1) {
 		if (errno != EINTR) {
 			event_warn("epoll_wait");
@@ -478,6 +482,7 @@ epoll_dispatch(struct event_base *base, struct timeval *tv)
 	event_debug(("%s: epoll_wait reports %d", __func__, res));
 	EVUTIL_ASSERT(res <= epollop->nevents);
 
+	/* 逐个处理倾听到的激活事件 */
 	for (i = 0; i < res; i++) {
 		int what = events[i].events;
 		short ev = 0;
@@ -500,9 +505,15 @@ epoll_dispatch(struct event_base *base, struct timeval *tv)
 		if (!ev)
 			continue;
 
+		/* 标记对应的 event 事件处于激活状态
+		 * 并且将这个 event 的回调抽象 struct event_callback 添加到
+		 * event_base 的 activequeues 成员管理的激活队列
+		 * */
 		evmap_io_active_(base, events[i].data.fd, ev | EV_ET);
 	}
 
+	/* 如果倾听到了所有的激活事件，那么扩大 2 倍内存，为更多的 event
+	 * 准备 */
 	if (res == epollop->nevents && epollop->nevents < MAX_NEVENT) {
 		/* We used all of the event space this time.  We should
 		   be ready for more events next time. */

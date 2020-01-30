@@ -483,10 +483,14 @@ evmap_io_active_(struct event_base *base, evutil_socket_t fd, short events)
 	if (fd < 0 || fd >= io->nentries)
 		return;
 #endif
+	/* 根据 fd 获取对应的 evmap_io 实例指针保存到 ctx */
 	GET_IO_SLOT(ctx, io, fd, evmap_io);
 
 	if (NULL == ctx)
 		return;
+	/* 循环便利和这个 ctx 有关的 event 事件所有类型的 event 是否满足条件
+	 * 如果满足条件，那么置位对应的 event 为激活状态
+	 * */
 	LIST_FOREACH(ev, &ctx->events, ev_io_next) {
 		if (ev->ev_events & events)
 			event_active_nolock_(ev, ev->ev_events & events, 1);

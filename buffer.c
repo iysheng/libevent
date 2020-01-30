@@ -1833,6 +1833,7 @@ evbuffer_add(struct evbuffer *buf, const void *data_in, size_t datlen)
 	buf->n_add_for_cb += datlen;
 
 out:
+	/* 执行 evbuffer 的回调函数 */
 	evbuffer_invoke_callbacks_(buf);
 	result = 0;
 done:

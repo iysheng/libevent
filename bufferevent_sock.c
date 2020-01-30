@@ -368,6 +368,7 @@ bufferevent_socket_new(struct event_base *base, evutil_socket_t fd,
 	event_assign(&bufev->ev_write, bufev->ev_base, fd,
 	    EV_WRITE|EV_PERSIST|EV_FINALIZE, bufferevent_writecb, bufev);
 
+	/* 初始化 的 output 的回调函数 */
 	evbuffer_add_cb(bufev->output, bufferevent_socket_outbuf_cb, bufev);
 
 	evbuffer_freeze(bufev->input, 0);

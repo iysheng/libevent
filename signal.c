@@ -122,8 +122,11 @@ void
 evsig_set_base_(struct event_base *base)
 {
 	EVSIGBASE_LOCK();
+	/* 初始化倾听信号的 struct event_base 指针 */
 	evsig_base = base;
+	/* 记录一份倾听信号的数量 */
 	evsig_base_n_signals_added = base->sig.ev_n_signals_added;
+	/* 这个是不是类似倾听信号的句柄？？？ */
 	evsig_base_fd = base->sig.ev_signal_pair[1];
 	EVSIGBASE_UNLOCK();
 }
