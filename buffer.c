@@ -1116,6 +1116,7 @@ done:
 	return result;
 }
 
+/* 释放 evbuffer 的内存空间 */
 int
 evbuffer_drain(struct evbuffer *buf, size_t len)
 {
@@ -2312,6 +2313,7 @@ evbuffer_read(struct evbuffer *buf, evutil_socket_t fd, int howmuch)
 
 	EVBUFFER_LOCK(buf);
 
+	/* 检查是否冷冻了这个缓冲区，如果这个缓冲区处于冷冻状态，那么直接返回 */
 	if (buf->freeze_end) {
 		result = -1;
 		goto done;
@@ -2576,6 +2578,7 @@ evbuffer_write_atmost(struct evbuffer *buffer, evutil_socket_t fd,
 #endif
 	}
 
+	/* 如果已经将数据发生出去，那么释放对应保存这段数据相关的内存空间 */
 	if (n > 0)
 		evbuffer_drain(buffer, n);
 
@@ -3411,6 +3414,7 @@ evbuffer_cb_clear_flags(struct evbuffer *buffer,
 	return 0;
 }
 
+/* 冷冻 buffer 缓冲区 */
 int
 evbuffer_freeze(struct evbuffer *buffer, int start)
 {
@@ -3423,6 +3427,7 @@ evbuffer_freeze(struct evbuffer *buffer, int start)
 	return 0;
 }
 
+/* 解冻 buffer 缓冲区 */
 int
 evbuffer_unfreeze(struct evbuffer *buffer, int start)
 {

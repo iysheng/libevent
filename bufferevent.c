@@ -264,6 +264,7 @@ bufferevent_run_writecb_(struct bufferevent *bufev, int options)
 		p->writecb_pending = 1;
 		SCHEDULE_DEFERRED(p);
 	} else {
+		/* 回调用户定义的写缓冲区 event 对应的回调函数 */
 		bufev->writecb(bufev, bufev->cbarg);
 	}
 }
@@ -311,25 +312,32 @@ bufferevent_init_common_(struct bufferevent_private *bufev_private,
     const struct bufferevent_ops *ops,
     enum bufferevent_options options)
 {
+	/* 从 bufferevent_private 实例提取 bufferevent 实例 */
 	struct bufferevent *bufev = &bufev_private->bev;
 
+	/* 申请输入缓冲区 */
 	if (!bufev->input) {
 		if ((bufev->input = evbuffer_new()) == NULL)
 			goto err;
 	}
 
+	/* 申请输出缓冲区 */
 	if (!bufev->output) {
 		if ((bufev->output = evbuffer_new()) == NULL)
 			goto err;
 	}
 
+	/* 初始化引用计数 */
 	bufev_private->refcnt = 1;
+	/* 初始化这个 bufferevent 关联的 event_base 实例 */
 	bufev->ev_base = base;
 
 	/* Disable timeouts. */
+	/* 清零超时读写的时间 */
 	evutil_timerclear(&bufev->timeout_read);
 	evutil_timerclear(&bufev->timeout_write);
 
+	/* 初始化这个 bufferevent 的 be_ops 成员 */
 	bufev->be_ops = ops;
 
 	if (bufferevent_ratelim_init_(bufev_private))
@@ -340,6 +348,8 @@ bufferevent_init_common_(struct bufferevent_private *bufev_private,
 	 * trigger a callback.  Reading needs to be explicitly enabled
 	 * because otherwise no data will be available.
 	 */
+	/* 直接标记允许 bufferevent 的写事件，这样可以保证执行 bufferevent_write
+	 * 的时候会触发回调函数，读取需要显式的使能 */
 	bufev->enabled = EV_WRITE;
 
 #ifndef EVENT__DISABLE_THREAD_SUPPORT
@@ -368,6 +378,7 @@ bufferevent_init_common_(struct bufferevent_private *bufev_private,
 
 	bufev_private->options = options;
 
+	/* 初始化 bufferevent 的输入和输出缓冲区的 parent 成员指针关联到 bufferevent */
 	evbuffer_set_parent_(bufev->input, bufev);
 	evbuffer_set_parent_(bufev->output, bufev);
 

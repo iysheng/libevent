@@ -119,9 +119,15 @@ struct evbuffer {
 	unsigned own_lock : 1;
 	/** True iff we should not allow changes to the front of the buffer
 	 * (drains or prepends). */
+	/* 冷冻标记，如果为真，那么拒绝添加从该缓冲区取数据
+	 * 这个标记一般用于 output 缓冲区
+	 * */
 	unsigned freeze_start : 1;
 	/** True iff we should not allow changes to the end of the buffer
 	 * (appends) */
+	/* 冷冻标记，如果为真，那么拒绝添加向该缓冲区添加（追加）
+	 * 这个标记一般用于 input 缓冲区
+	 * */
 	unsigned freeze_end : 1;
 	/** True iff this evbuffer's callbacks are not invoked immediately
 	 * upon a change in the buffer, but instead are deferred to be invoked
@@ -154,6 +160,7 @@ struct evbuffer {
 
 	/** The parent bufferevent object this evbuffer belongs to.
 	 * NULL if the evbuffer stands alone. */
+	/* 指向这个 evbuffer 所属的 bufferevent 指针 */
 	struct bufferevent *parent;
 };
 

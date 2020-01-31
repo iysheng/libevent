@@ -84,6 +84,7 @@ static int be_socket_ctrl(struct bufferevent *, enum bufferevent_ctrl_op, union 
 
 static void be_socket_setfd(struct bufferevent *, evutil_socket_t);
 
+/* 关于 socket 的 bufferevent 的处理函数指针表 */
 const struct bufferevent_ops bufferevent_ops_socket = {
 	"socket",
 	evutil_offsetof(struct bufferevent_private, bev),
@@ -186,8 +187,11 @@ bufferevent_readcb(evutil_socket_t fd, short event, void *arg)
 	if (bufev_p->read_suspended)
 		goto done;
 
+	/* 解冻 input 缓冲区，允许向该缓冲区添加数据 */
 	evbuffer_unfreeze(input, 0);
+	/* 读取数据保存到 input 缓冲区 */
 	res = evbuffer_read(input, fd, (int)howmuch); /* XXXX evbuffer_read would do better to take and return ev_ssize_t */
+	/* 冷冻 input 缓冲区，保证无法向该缓冲区追加数据 */
 	evbuffer_freeze(input, 0);
 
 	if (res == -1) {
@@ -290,9 +294,12 @@ bufferevent_writecb(evutil_socket_t fd, short event, void *arg)
 	if (bufev_p->write_suspended)
 		goto done;
 
+	/* 如果输出缓冲区还有内存空间 */
 	if (evbuffer_get_length(bufev->output)) {
+		/* 解冻 output 缓冲区，允许从 output 缓冲区取数据 */
 		evbuffer_unfreeze(bufev->output, 1);
 		res = evbuffer_write_atmost(bufev->output, fd, atmost);
+		/* 冷冻 output 缓冲区，禁止从 output 缓冲区取数据 */
 		evbuffer_freeze(bufev->output, 1);
 		if (res == -1) {
 			int err = evutil_socket_geterror(fd);
@@ -304,6 +311,7 @@ bufferevent_writecb(evutil_socket_t fd, short event, void *arg)
 			   XXXX Actually, a 0 on write doesn't indicate
 			   an EOF. An ECONNRESET might be more typical.
 			 */
+			/* 表示实际发送（write）出去 0 字节的数据 */
 			what |= BEV_EVENT_EOF;
 		}
 		if (res <= 0)
@@ -312,6 +320,7 @@ bufferevent_writecb(evutil_socket_t fd, short event, void *arg)
 		bufferevent_decrement_write_buckets_(bufev_p, res);
 	}
 
+	/* 如果 wr_vent  缓冲区的长度已经为 0，删除这个 event */
 	if (evbuffer_get_length(bufev->output) == 0) {
 		event_del(&bufev->ev_write);
 	}
@@ -344,6 +353,7 @@ struct bufferevent *
 bufferevent_socket_new(struct event_base *base, evutil_socket_t fd,
     int options)
 {
+	/* bufferevent_private 实例包含了 bufferevent 实例 */
 	struct bufferevent_private *bufev_p;
 	struct bufferevent *bufev;
 
@@ -363,12 +373,15 @@ bufferevent_socket_new(struct event_base *base, evutil_socket_t fd,
 	bufev = &bufev_p->bev;
 	evbuffer_set_flags(bufev->output, EVBUFFER_FLAG_DRAINS_TO_FD);
 
+	/* 一个 bufferevent 对应两个 event 实例，分别是 ev_read 和 ev_write
+	 * 分别初始化两个 event 实例，并且关联到 event_base 实例
+	 * */
 	event_assign(&bufev->ev_read, bufev->ev_base, fd,
 	    EV_READ|EV_PERSIST|EV_FINALIZE, bufferevent_readcb, bufev);
 	event_assign(&bufev->ev_write, bufev->ev_base, fd,
 	    EV_WRITE|EV_PERSIST|EV_FINALIZE, bufferevent_writecb, bufev);
 
-	/* 初始化 的 output 的回调函数 */
+	/* 初始化 bufferevent 的 output 的回调函数 */
 	evbuffer_add_cb(bufev->output, bufferevent_socket_outbuf_cb, bufev);
 
 	evbuffer_freeze(bufev->input, 0);

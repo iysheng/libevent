@@ -98,7 +98,11 @@ main(int argc, char **argv)
 	return 0;
 }
 
-/* 这个是 socket 建立连接时的回调函数 */
+/* 这个是客户端 socket 建立连接时，服务端对新创建的
+ * socket 的回调函数
+ * fd 是服务端对于面向链接的 socket 新创建的 fd
+ * sa 描述的是客户端的 IP 和端口号
+ * */
 static void
 listener_cb(struct evconnlistener *listener, evutil_socket_t fd,
     struct sockaddr *sa, int socklen, void *user_data)
@@ -106,9 +110,11 @@ listener_cb(struct evconnlistener *listener, evutil_socket_t fd,
 	struct event_base *base = user_data;
 	struct bufferevent *bev;
 
-	/* 申请 bufferevent 缓冲区，这个 fd 是建立链接时候新创建的 fd */
+	/* 申请带有缓冲区的 event ，这个 fd 是建立链接时候服务端新创建的 fd */
 	bev = bufferevent_socket_new(base, fd, BEV_OPT_CLOSE_ON_FREE);
-	fprintf(stdout, "%s fd=%d\n", __func__, fd);
+	fprintf(stdout, "%s fd=%d addr=%lx port=%hu\n", __func__, fd,
+			ntohl((unsigned long)((struct sockaddr_in *)sa)->sin_addr.s_addr),
+			ntohs(((struct sockaddr_in *)sa)->sin_port));
 	if (!bev) {
 		fprintf(stderr, "Error constructing bufferevent!");
 		event_base_loopbreak(base);

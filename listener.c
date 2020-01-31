@@ -84,6 +84,7 @@ struct evconnlistener {
 	evconnlistener_errorcb errorcb;
 	void *user_data;
 	unsigned flags;
+	/* 这个可能是对这个服务端倾听者句柄的引用计数 */
 	short refcnt;
 	int accept4_flags;
 	unsigned enabled : 1;
@@ -92,7 +93,7 @@ struct evconnlistener {
 struct evconnlistener_event {
 	/* 服务端 socket 专有成员 */
 	struct evconnlistener base;
-	/* event 基本成员 */
+	/* event 实例，抽象服务端倾听者事件 */
 	struct event listener;
 };
 
@@ -232,9 +233,12 @@ evconnlistener_new(struct event_base *base,
 	}
 
 	/* event_assign 函数定义在 event.c 文件
-	 * 分析这个函数十分重要，关联了 event_base 到 listener （这是一个 struct event 实例）
-	 * 关键是初始化 struct event 这个结构体实例
+	 * 分析这个函数十分重要，关联了 listener （这是一个 struct event 实例）
+	 * 到 event_base 实例，关键是初始化 struct event 这个结构体实例
 	 * */
+	/* 将 struct evconnlistener_event *lev 作为参数传递给这个 event 的回调函数
+	 * 这个参数实际也是结构体 struct evconnlistener 的首地址
+	 * 当有 socket 链接请求到达时，会执行函数 listener_read_cb */
 	event_assign(&lev->listener, base, fd, EV_READ|EV_PERSIST,
 	    listener_read_cb, lev);
 
@@ -251,7 +255,7 @@ evconnlistener_new(struct event_base *base,
 
 /* 
  * cb：回调函数指针
- * ptr：回调函数的一个参数？？？
+ * ptr：回调函数的 usr_arg 参数
  * backlog：指定倾听一个端口，未完成链接的最大个数
  * sa 和 socklen 描述的是 socket 的信息
  * */
@@ -477,10 +481,19 @@ listener_read_cb(evutil_socket_t fd, short what, void *p)
 	evconnlistener_errorcb errorcb;
 	void *user_data;
 	LOCK(lev);
+	/* 因为倾听的 socket 是非阻塞状态
+	 * 所以 while (1) 的目的是为了可以提取所有的挂起的链接请求
+	 * 然后执行用户定义的链接回调函数，对于服务端 listen 的链接请求
+	 * 也是可以使用 epoll 或者 select 等这类方法去倾听的，重点是
+	 * 作为服务端倾听链接请求的 socket 要处于非阻塞状态，这里可能是其中
+	 * 很重要的一个原因
+	 * */
 	while (1) {
 		struct sockaddr_storage ss;
 		ev_socklen_t socklen = sizeof(ss);
+		/* 通过 accpet 系统调用倾听链接请求，返回新创建的链接句柄 */
 		evutil_socket_t new_fd = evutil_accept4_(fd, (struct sockaddr*)&ss, &socklen, lev->accept4_flags);
+		/* 如果没有挂起的链接请求那么直接退出 */
 		if (new_fd < 0)
 			break;
 		if (socklen == 0) {
@@ -499,6 +512,10 @@ listener_read_cb(evutil_socket_t fd, short what, void *p)
 		cb = lev->cb;
 		user_data = lev->user_data;
 		UNLOCK(lev);
+		/* 当有链接请求时，回调用户定义的回调函数
+		 * new_fd 表示服务端新创建的句柄
+		 * ss 表示的是客户端的 IP 和端口号
+		 * */
 		cb(lev, new_fd, (struct sockaddr*)&ss, (int)socklen,
 		    user_data);
 		LOCK(lev);
@@ -508,6 +525,7 @@ listener_read_cb(evutil_socket_t fd, short what, void *p)
 			return;
 		}
 		--lev->refcnt;
+		/* 如果回调函数取消了这个服务端倾听的使能，那么退出倾听 */
 		if (!lev->enabled) {
 			/* the callback could have disabled the listener */
 			UNLOCK(lev);

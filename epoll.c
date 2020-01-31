@@ -268,6 +268,7 @@ epoll_apply_one_change(struct event_base *base,
     struct epollop *epollop,
     const struct event_change *ch)
 {
+	/* 和 epoll 强相关的数据结构，目的是添加 event 事件到 epoll 的倾听列表 */
 	struct epoll_event epev;
 	int op, events = 0;
 	int idx;

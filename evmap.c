@@ -382,7 +382,7 @@ evmap_io_add_(struct event_base *base, evutil_socket_t fd, struct event *ev)
 		 * this. */
 		/* 我们不能混合边沿除法和电平除法，应该断言
 		 * 使用 eventops 数组对应的 add 方法添加这个句柄
-		 * 以 poll 方法为例，这个动作执行的是 poll_add 函数
+		 * 以 epoll 方法为例，这个动作执行的是 epoll_nochangelist_add 函数
 		 * */
 		if (evsel->add(base, ev->ev_fd,
 			old, (ev->ev_events & EV_ET) | res, extra) == -1)
