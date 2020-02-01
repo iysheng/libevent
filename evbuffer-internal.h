@@ -153,6 +153,7 @@ struct evbuffer {
 
 	/** A struct event_callback handle to make all of this buffer's callbacks
 	 * invoked from the event loop. */
+	/* 管理一个 evbuffer 回调函数的链表！！！ */
 	struct event_callback deferred;
 
 	/** A doubly-linked-list of callback functions */

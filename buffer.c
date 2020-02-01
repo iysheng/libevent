@@ -3347,6 +3347,7 @@ evbuffer_setcb(struct evbuffer *buffer, evbuffer_cb cb, void *cbarg)
 	return 0;
 }
 
+/* 添加回调函数到 evbuffer 的链表 */
 struct evbuffer_cb_entry *
 evbuffer_add_cb(struct evbuffer *buffer, evbuffer_cb_func cb, void *cbarg)
 {
@@ -3354,9 +3355,11 @@ evbuffer_add_cb(struct evbuffer *buffer, evbuffer_cb_func cb, void *cbarg)
 	if (! (e = mm_calloc(1, sizeof(struct evbuffer_cb_entry))))
 		return NULL;
 	EVBUFFER_LOCK(buffer);
+	/* 初始化 evbuffer 的回调函数 */
 	e->cb.cb_func = cb;
 	e->cbarg = cbarg;
 	e->flags = EVBUFFER_CB_ENABLED;
+	/* 将这个回调函数添加到 evbuffer 的链表！！！ */
 	LIST_INSERT_HEAD(&buffer->callbacks, e, next);
 	EVBUFFER_UNLOCK(buffer);
 	return e;

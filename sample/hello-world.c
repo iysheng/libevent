@@ -121,7 +121,9 @@ listener_cb(struct evconnlistener *listener, evutil_socket_t fd,
 		return;
 	}
 	bufferevent_setcb(bev, NULL, conn_writecb, conn_eventcb, NULL);
+	/* 添加 ev_write 实例到 event_base 管理结构体 */
 	bufferevent_enable(bev, EV_WRITE);
+	/* 从 event_base 管理结构体删除 ev_read 这个 event 实例 */
 	bufferevent_disable(bev, EV_READ);
 
 	/* 写数据到 bufferevent */

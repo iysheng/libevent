@@ -140,6 +140,10 @@ bufferevent_socket_outbuf_cb(struct evbuffer *buf,
 	    !bufev_p->write_suspended) {
 		/* Somebody added data to the buffer, and we would like to
 		 * write, and we were not writing.  So, start writing. */
+		/* 添加 ev_write 到 event_base 管理实例，可以保证每次通过 bufferevent
+		 * write 的时候，都会重新添加 ev_write 到 event_base，当在 ev_write 的
+		 * 回调函数 bufferevent_writecb 执行时，会检查数据写完时，则
+		 * 直接删除这个 wr_event */
 		if (bufferevent_add_event_(&bufev->ev_write, &bufev->timeout_write) == -1) {
 		    /* Should we log this? */
 		}
@@ -322,6 +326,10 @@ bufferevent_writecb(evutil_socket_t fd, short event, void *arg)
 
 	/* 如果 wr_vent  缓冲区的长度已经为 0，删除这个 event */
 	if (evbuffer_get_length(bufev->output) == 0) {
+		/* 如果这个 ev_write 上没有数据了，那么删除这个 event 事件
+		 * 后续如果有数据写到这个 bufferevent 的时候，执行 evbuffer output
+		 * 的回调函数 bufferevent_socket_outbuf_cb 时会再次添加
+		 * ev_write 到 event_base */
 		event_del(&bufev->ev_write);
 	}
 
@@ -381,7 +389,7 @@ bufferevent_socket_new(struct event_base *base, evutil_socket_t fd,
 	event_assign(&bufev->ev_write, bufev->ev_base, fd,
 	    EV_WRITE|EV_PERSIST|EV_FINALIZE, bufferevent_writecb, bufev);
 
-	/* 初始化 bufferevent 的 output 的回调函数 */
+	/* 注册一个回调函数到 output 这个 evbuffer */
 	evbuffer_add_cb(bufev->output, bufferevent_socket_outbuf_cb, bufev);
 
 	evbuffer_freeze(bufev->input, 0);
@@ -592,9 +600,11 @@ bufferevent_new(evutil_socket_t fd,
 static int
 be_socket_enable(struct bufferevent *bufev, short event)
 {
+	/* 添加 ev_read 到 event_base 管理结构体 */
 	if (event & EV_READ &&
 	    bufferevent_add_event_(&bufev->ev_read, &bufev->timeout_read) == -1)
 			return -1;
+	/* 添加 ev_write 到 event_base 管理结构体 */
 	if (event & EV_WRITE &&
 	    bufferevent_add_event_(&bufev->ev_write, &bufev->timeout_write) == -1)
 			return -1;
@@ -606,11 +616,13 @@ be_socket_disable(struct bufferevent *bufev, short event)
 {
 	struct bufferevent_private *bufev_p = BEV_UPCAST(bufev);
 	if (event & EV_READ) {
+		/* 删除 ev_read 实例 */
 		if (event_del(&bufev->ev_read) == -1)
 			return -1;
 	}
 	/* Don't actually disable the write if we are trying to connect. */
 	if ((event & EV_WRITE) && ! bufev_p->connecting) {
+		/* 删除 ev_write 实例 */
 		if (event_del(&bufev->ev_write) == -1)
 			return -1;
 	}
