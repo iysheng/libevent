@@ -2234,6 +2234,7 @@ event_base_once(struct event_base *base, evutil_socket_t fd, short events,
 int
 event_assign(struct event *ev, struct event_base *base, evutil_socket_t fd, short events, void (*callback)(evutil_socket_t, short, void *), void *arg)
 {
+	/* 如果指定的 base 为 NULL，那么就用默认的 event_base */
 	if (!base)
 		base = current_base;
 	if (arg == &event_self_cbarg_ptr_)
@@ -2337,6 +2338,9 @@ event_base_set(struct event_base *base, struct event *ev)
 	return (0);
 }
 
+/* event_set 使用的是默认的 event_base 实例，如果需要指定 event_base 那么需要
+ * 使用 event_assign 函数
+ * */
 void
 event_set(struct event *ev, evutil_socket_t fd, short events,
 	  void (*callback)(evutil_socket_t, short, void *), void *arg)
