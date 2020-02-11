@@ -2841,6 +2841,7 @@ evutil_accept4_(evutil_socket_t sockfd, struct sockaddr *addr,
 		}
 	}
 	if (flags & EVUTIL_SOCK_NONBLOCK) {
+		/* 设置这个 socket 为非阻塞模式 */
 		if (evutil_fast_socket_nonblocking(result) < 0) {
 			evutil_closesocket(result);
 			return -1;

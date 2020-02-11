@@ -233,8 +233,9 @@ evconnlistener_new(struct event_base *base,
 	}
 
 	/* event_assign 函数定义在 event.c 文件
-	 * 分析这个函数十分重要，关联了 listener （这是一个 struct event 实例）
-	 * 到 event_base 实例，关键是初始化 struct event 这个结构体实例
+	 * 分析这个函数十分重要，关联了 event_base 到 listener （这是一个 struct event 实例）
+	 * 关键是初始化 struct event 这个结构体实例
+	 * 初始化这个倾听者的读回调函数为 listener_read_cb !!!
 	 * */
 	/* 将 struct evconnlistener_event *lev 作为参数传递给这个 event 的回调函数
 	 * 这个参数实际也是结构体 struct evconnlistener 的首地址
@@ -253,7 +254,7 @@ evconnlistener_new(struct event_base *base,
 	return &lev->base;
 }
 
-/* 
+/* evconnlistener_new_bind
  * cb：回调函数指针
  * ptr：回调函数的 usr_arg 参数
  * backlog：指定倾听一个端口，未完成链接的最大个数

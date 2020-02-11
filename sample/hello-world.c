@@ -26,11 +26,12 @@
 
 static const char MESSAGE[] = "Hello, World!\n";
 
-static const int PORT = 9995;
+static const int PORT = 5007;
 
 static void listener_cb(struct evconnlistener *, evutil_socket_t,
     struct sockaddr *, int socklen, void *);
 static void conn_writecb(struct bufferevent *, void *);
+static void conn_readcb(struct bufferevent *bev, void *);
 static void conn_eventcb(struct bufferevent *, short, void *);
 static void signal_cb(evutil_socket_t, short, void *);
 
@@ -40,7 +41,7 @@ main(int argc, char **argv)
 	struct event_base *base;
 	struct evconnlistener *listener;
 	struct event *signal_event;
-
+	const char *methods;
 	struct sockaddr_in sin = {0};
 #ifdef _WIN32
 	WSADATA wsa_data;
@@ -52,6 +53,11 @@ main(int argc, char **argv)
 	if (!base) {
 		fprintf(stderr, "Could not initialize libevent!\n");
 		return 1;
+	}
+	else if (NULL != (methods = event_base_get_method(base)))
+	{
+		/* 默认一个 event_base 只有一个优先级 */
+		fprintf(stdout, "methods=%s numberpri=%d\n", methods, event_base_get_npriorities(base));
 	}
 
 	/* 初始化 socket 的协议族和端口号 */
@@ -110,7 +116,11 @@ listener_cb(struct evconnlistener *listener, evutil_socket_t fd,
 	struct event_base *base = user_data;
 	struct bufferevent *bev;
 
-	/* 申请带有缓冲区的 event ，这个 fd 是建立链接时候服务端新创建的 fd */
+	/* 申请带有缓冲区的 event ，这个 fd 是建立链接时候服务端新创建的 fd
+	 * 创建一个基于 socket 的 bufferevent 实例
+	 * 用来跟踪，这个 fd 对应的读、写事件
+	 * 切记：传递的 fd 一定要是 non-blocking 模式
+	 * */
 	bev = bufferevent_socket_new(base, fd, BEV_OPT_CLOSE_ON_FREE);
 	fprintf(stdout, "%s fd=%d addr=%lx port=%hu\n", __func__, fd,
 			ntohl((unsigned long)((struct sockaddr_in *)sa)->sin_addr.s_addr),
@@ -125,9 +135,24 @@ listener_cb(struct evconnlistener *listener, evutil_socket_t fd,
 	bufferevent_enable(bev, EV_WRITE);
 	/* 从 event_base 管理结构体删除 ev_read 这个 event 实例 */
 	bufferevent_disable(bev, EV_READ);
+}
 
-	/* 写数据到 bufferevent */
-	bufferevent_write(bev, MESSAGE, strlen(MESSAGE));
+static void
+conn_readcb(struct bufferevent *bev, void *user_data)
+{
+/* This callback is invoked when there is data to read on bev. */
+	size_t len = 0;
+        int i = 0;
+	char *line;
+	struct evbuffer *input = bufferevent_get_input(bev);
+
+	while ((line = evbuffer_readln(input, &len, EVBUFFER_EOL_NUL))) {
+		for (; i < len; i++)
+		{
+		    fprintf(stdout, "%hhx ", line[i]);
+		}
+		fprintf(stdout, "\n");
+	}
 }
 
 static void
@@ -142,6 +167,7 @@ conn_writecb(struct bufferevent *bev, void *user_data)
 	} else {
 	    printf("no zeros\n");
 	}
+	printf("wwwwwwwww");
 }
 
 static void
@@ -152,6 +178,8 @@ conn_eventcb(struct bufferevent *bev, short events, void *user_data)
 	} else if (events & BEV_EVENT_ERROR) {
 		printf("Got an error on the connection: %s\n",
 		    strerror(errno));/*XXX win32*/
+	} else if (events & BEV_EVENT_CONNECTED) {
+		printf("Got a connected event.\n");
 	}
 	/* None of the other events can happen here, since we haven't enabled
 	 * timeouts */

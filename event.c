@@ -112,6 +112,7 @@ static const struct eventop *eventops[] = {
 	&kqops,
 #endif
 #ifdef EVENT__HAVE_EPOLL
+	/* Linux 默认使用优先的是 epoll */
 	&epollops,
 #endif
 #ifdef EVENT__HAVE_DEVPOLL
@@ -2350,6 +2351,8 @@ event_set(struct event *ev, evutil_socket_t fd, short events,
 	EVUTIL_ASSERT(r == 0);
 }
 
+/* 该函数作为 event_new 这类函数的 arg 参数，实现传递给 event 的回调函数 event 本身
+ * 首地址 */
 void *
 event_self_cbarg(void)
 {
